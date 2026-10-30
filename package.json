@@ -1,0 +1,16 @@
+{
+  "name": "enterprise-task-management-platform",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Enterprise Task Management, Status Tracking & Employee Communication Platform",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix server run build && npm --prefix client run build",
+    "test": "node test-e2e.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
