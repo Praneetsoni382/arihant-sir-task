@@ -181,6 +181,7 @@ export async function sendPushForNotification(notification: Notification): Promi
           webpush: {
             headers: {
               Urgency: 'high',
+              TTL: '86400',
             },
             notification: {
               title: notification.title,
@@ -189,6 +190,8 @@ export async function sendPushForNotification(notification: Notification): Promi
               badge: '/favicon.svg',
               tag,
               data: payloadData,
+              requireInteraction: true,
+              vibrate: [200, 100, 200],
             },
             fcmOptions: {
               link: targetUrl,

@@ -273,6 +273,36 @@ export async function listenForegroundMessages(
     const unsubscribe = onMessage(messaging, (payload) => {
       console.log('[FCM] Foreground push message received:', payload);
       onReceived(payload);
+
+      // Force native OS notification display on Android OS & Desktop notification shade
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        const title = payload.notification?.title || payload.data?.title || 'TaskFlow Notification';
+        const body = payload.notification?.body || payload.data?.body || 'New task update received.';
+        const tag = payload.data?.tag || `taskflow-${Date.now()}`;
+        const url = payload.data?.url || '/';
+
+        const options: NotificationOptions & { vibrate?: number[]; renotify?: boolean } = {
+          body,
+          icon: '/favicon.svg',
+          badge: '/favicon.svg',
+          tag,
+          renotify: true,
+          vibrate: [200, 100, 200],
+          data: { url, ...payload.data },
+        };
+
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready
+            .then((reg) => {
+              reg.showNotification(title, options);
+            })
+            .catch(() => {
+              try { new Notification(title, options); } catch {}
+            });
+        } else {
+          try { new Notification(title, options); } catch {}
+        }
+      }
     });
     return unsubscribe;
   } catch (err) {
