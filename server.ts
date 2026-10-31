@@ -15,8 +15,14 @@ async function startServer() {
       const app = appModule.default;
       const { seedStore } = storeModule;
 
+      const { startISTClockAndScheduler, getISTClock } = await import(
+        './server/src/services/istSchedulerService.js'
+      );
+
       const PORT = Number(process.env.PORT || 3000);
       await seedStore();
+      startISTClockAndScheduler();
+      const ist = getISTClock();
 
       const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
@@ -31,6 +37,7 @@ async function startServer() {
       app.listen(PORT, '0.0.0.0', () => {
         console.log(`\n🚀 Task Management Platform API running on http://0.0.0.0:${PORT}`);
         console.log(`   Health check: http://0.0.0.0:${PORT}/api/health`);
+        console.log(`   🇮🇳 IST Clock Active: ${ist.timeWithSeconds} (${ist.dateFormatted})`);
         console.log(`\n👑 System Administrator Account:`);
         console.log(`   Email:      admin@company.com`);
         console.log(`   Password:   Admin@2024!\n`);

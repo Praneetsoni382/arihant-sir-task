@@ -12,6 +12,7 @@ import {
   Ban,
   User,
   Users,
+  Bell,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Card } from '../../components/ui/Card';
@@ -20,7 +21,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Textarea } from '../../components/ui/Textarea';
 import { PageLoader } from '../../components/ui/LoadingSpinner';
-import { taskApi, statusRequestApi, queryApi, chatApi } from '../../services/api';
+import { taskApi, statusRequestApi, queryApi, chatApi, reminderApi } from '../../services/api';
 import { formatDate, formatDateTime, formatRelative, isOverdue } from '../../utils/formatDate';
 import {
   getStatusColors,
@@ -159,6 +160,28 @@ export function TaskDetailPage() {
     },
   });
 
+  const [reminderToast, setReminderToast] = useState<string | null>(null);
+
+  const triggerTaskReminderMutation = useMutation({
+    mutationFn: () => reminderApi.triggerIST({ taskId: id, forceAll: true }),
+    onSuccess: (res) => {
+      const data = res.data?.data as { dispatchedCount?: number } | undefined;
+      const dispatched = data?.dispatchedCount ?? 0;
+      setReminderToast(
+        dispatched > 0
+          ? `Dispatched pending task notification to ${dispatched} assigned employee(s)! 🚀`
+          : 'All assigned employees have already submitted or were already notified.'
+      );
+      queryClient.invalidateQueries({ queryKey: ['admin-task-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      setTimeout(() => setReminderToast(null), 5000);
+    },
+    onError: (err: any) => {
+      setReminderToast(err?.response?.data?.error || 'Failed to dispatch notification.');
+      setTimeout(() => setReminderToast(null), 4000);
+    },
+  });
+
   if (isLoading) {
     return (
       <AppLayout title="Task Detail">
@@ -254,27 +277,45 @@ export function TaskDetailPage() {
                 {getStatusLabel(task.status)}
               </Badge>
               {task.status !== 'cancelled' && task.status !== 'approved' && (
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => {
-                    if (confirm('Are you sure you want to cancel this task? This action cannot be reversed.')) {
-                      cancelTaskMutation.mutate();
-                    }
-                  }}
-                  loading={cancelTaskMutation.isPending}
-                >
-                  <Ban size={14} />
-                  Cancel Task
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => triggerTaskReminderMutation.mutate()}
+                    loading={triggerTaskReminderMutation.isPending}
+                  >
+                    <Bell size={14} />
+                    Dispatch Pending Alert Now
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm('Are you sure you want to cancel this task? This action cannot be reversed.')) {
+                        cancelTaskMutation.mutate();
+                      }
+                    }}
+                    loading={cancelTaskMutation.isPending}
+                  >
+                    <Ban size={14} />
+                    Cancel Task
+                  </Button>
+                </>
               )}
             </div>
           </div>
 
+          {reminderToast && (
+            <div className="mt-3 p-2.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-xs flex items-center gap-2">
+              <CheckCircle size={15} className="text-blue-600 shrink-0" />
+              <span>{reminderToast}</span>
+            </div>
+          )}
+
           {/* Metadata bar */}
           <div className="pt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
             <div>
-              <span className="text-[#667085] block">Target Deadline</span>
+              <span className="text-[#667085] block">Target Deadline (IST)</span>
               <span className={`font-semibold flex items-center gap-1 mt-0.5 ${overdue ? 'text-[#D64545]' : 'text-[#172033]'}`}>
                 <Calendar size={13} />
                 {formatDate(task.deadline)}
@@ -289,12 +330,16 @@ export function TaskDetailPage() {
             </div>
             <div>
               <span className="text-[#667085] block">Timezone Standard</span>
-              <span className="font-semibold text-[#172033] mt-0.5 block">{task.timezone}</span>
+              <span className="font-semibold text-[#172033] mt-0.5 block">
+                {task.timezone || 'Asia/Kolkata'} (IST • UTC+5:30)
+              </span>
             </div>
             <div>
-              <span className="text-[#667085] block">Automated Reminders</span>
+              <span className="text-[#667085] block">Automated Reminder Slots (IST)</span>
               <span className="font-semibold text-[#172033] mt-0.5 block">
-                {task.reminderEnabled ? `Active (${task.reminderTimes.join(', ')})` : 'Disabled'}
+                {task.reminderEnabled && task.reminderTimes && task.reminderTimes.length > 0
+                  ? `Active: ${task.reminderTimes.join(', ')} IST`
+                  : 'Disabled'}
               </span>
             </div>
           </div>

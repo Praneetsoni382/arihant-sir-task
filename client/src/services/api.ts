@@ -143,10 +143,13 @@ export const reportApi = {
     api.get<ApiResponse>('/reports', { params }),
 };
 
-// Reminders
+// Reminders & IST Automated Scheduler
 export const reminderApi = {
   preview: () => api.get<ApiResponse>('/reminders/preview'),
   evaluate: () => api.post<ApiResponse>('/reminders/evaluate'),
+  getISTStatus: () => api.get<ApiResponse>('/reminders/ist-status'),
+  triggerIST: (data?: { slot?: string; forceAll?: boolean; taskId?: string }) =>
+    api.post<ApiResponse>('/reminders/trigger-ist', data),
 };
 
 // Push Notifications (FCM)

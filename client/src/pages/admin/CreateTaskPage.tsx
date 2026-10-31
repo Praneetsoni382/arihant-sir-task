@@ -30,13 +30,32 @@ export function CreateTaskPage() {
   const [category, setCategory] = useState('');
   const [department, setDepartment] = useState('Engineering');
   const [deadlineDate, setDeadlineDate] = useState('');
+  const [deadlineTime, setDeadlineTime] = useState('18:00');
   const [startDate, setStartDate] = useState('');
   const [managerNote, setManagerNote] = useState('');
 
-  // Reminder settings
+  // Reminder settings (Asia/Kolkata / IST Time Slots)
   const [reminderEnabled, setReminderEnabled] = useState(true);
-  const [reminderTimes, setReminderTimes] = useState<string[]>(['12:00', '15:00']);
-  const [newReminderTime, setNewReminderTime] = useState('17:00');
+  const [reminderTimes, setReminderTimes] = useState<string[]>(['09:30', '12:00', '15:00', '18:00']);
+  const [customSlot, setCustomSlot] = useState('16:00');
+
+  const PRESET_TIME_SLOTS = [
+    { time: '09:30', label: '09:30 AM', desc: 'Morning Standup' },
+    { time: '12:00', label: '12:00 PM', desc: 'Mid-day Review' },
+    { time: '15:00', label: '03:00 PM', desc: 'Afternoon Follow-up' },
+    { time: '18:00', label: '06:00 PM', desc: 'End of Day Wrap-up' },
+    { time: '21:00', label: '09:00 PM', desc: 'Night Urgent Alert' },
+  ];
+
+  const formatTime12 = (time24: string): string => {
+    const [hStr, mStr] = time24.split(':');
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    if (isNaN(h) || isNaN(m)) return time24;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
 
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -75,14 +94,31 @@ export function CreateTaskPage() {
     }
   };
 
-  const handleAddReminderTime = () => {
-    if (newReminderTime && !reminderTimes.includes(newReminderTime)) {
-      setReminderTimes([...reminderTimes, newReminderTime].sort());
+  const handleTogglePresetSlot = (time: string) => {
+    if (reminderTimes.includes(time)) {
+      setReminderTimes(reminderTimes.filter((t) => t !== time));
+    } else {
+      setReminderTimes([...reminderTimes, time].sort());
+    }
+  };
+
+  const handleAddCustomSlot = () => {
+    if (customSlot && !reminderTimes.includes(customSlot)) {
+      setReminderTimes([...reminderTimes, customSlot].sort());
     }
   };
 
   const handleRemoveReminderTime = (time: string) => {
     setReminderTimes(reminderTimes.filter((t) => t !== time));
+  };
+
+  const handleSelectAllPresets = () => {
+    const all = PRESET_TIME_SLOTS.map((p) => p.time);
+    setReminderTimes([...all].sort());
+  };
+
+  const handleClearSlots = () => {
+    setReminderTimes([]);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -98,7 +134,7 @@ export function CreateTaskPage() {
       return;
     }
     if (!deadlineDate) {
-      setFormError('Please select a deadline.');
+      setFormError('Please select a deadline date.');
       return;
     }
     if (assignmentType === 'solo' && selectedUserIds.length !== 1) {
@@ -110,6 +146,16 @@ export function CreateTaskPage() {
       return;
     }
 
+    // Build ISO timestamp in Indian Standard Time (UTC+5:30)
+    const timeStr = deadlineTime ? deadlineTime : '18:00';
+    let deadlineISO: string;
+    try {
+      // +05:30 offset for Asia/Kolkata
+      deadlineISO = new Date(`${deadlineDate}T${timeStr}:00+05:30`).toISOString();
+    } catch {
+      deadlineISO = new Date(deadlineDate).toISOString();
+    }
+
     const payload = {
       title,
       description,
@@ -117,7 +163,7 @@ export function CreateTaskPage() {
       priority,
       category,
       department,
-      deadline: new Date(deadlineDate).toISOString(),
+      deadline: deadlineISO,
       startDate: startDate ? new Date(startDate).toISOString() : null,
       timezone: 'Asia/Kolkata',
       reminderEnabled,
@@ -336,87 +382,194 @@ export function CreateTaskPage() {
             </div>
           </Card>
 
-          {/* Section 3: Schedule, Deadlines & Reminder Settings */}
+          {/* Section 3: Schedule, Deadlines & Indian Standard Time Slot Settings */}
           <Card>
             <CardHeader>
-              <CardTitle>3. Timeline & Automated Reminders (Asia/Kolkata)</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <span>3. Timeline & Automated Reminder Slots (Indian Standard Time)</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#3157A4]/10 text-[#3157A4]">
+                  IST • UTC+5:30
+                </span>
+              </CardTitle>
             </CardHeader>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-5">
+              {/* Deadline & Start Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Input
-                  label="Target Deadline Date (DD/MM/YYYY) *"
+                  label="Target Deadline Date *"
                   type="date"
                   value={deadlineDate}
                   onChange={(e) => setDeadlineDate(e.target.value)}
-                  helperText="Evaluated in Indian Standard Time (IST / Asia/Kolkata)"
+                  helperText="Date evaluated in Indian Standard Time (IST)"
                   required
                 />
 
                 <Input
-                  label="Commencement / Start Date (Optional)"
+                  label="Target Deadline Time (IST) *"
+                  type="time"
+                  value={deadlineTime}
+                  onChange={(e) => setDeadlineTime(e.target.value)}
+                  helperText="Default: 18:00 (06:00 PM IST)"
+                  required
+                />
+
+                <Input
+                  label="Commencement Date (Optional)"
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                 />
               </div>
 
-              {/* Reminders policy */}
-              <div className="pt-3 border-t border-[#E4E8EF]">
-                <div className="flex items-center justify-between mb-3">
+              {/* Automated Reminders Policy & Slot Selection */}
+              <div className="pt-4 border-t border-[#E4E8EF] space-y-4">
+                <div className="flex items-start justify-between gap-4">
                   <div>
-                    <label className="text-xs font-semibold text-[#172033] flex items-center gap-2">
-                      <Clock size={15} className="text-[#3157A4]" />
-                      <span>Task Submission Reminders</span>
+                    <label className="text-xs font-bold text-[#172033] flex items-center gap-2">
+                      <Clock size={16} className="text-[#3157A4]" />
+                      <span>Automated Pending Task Reminders (IST Clock Dispatch)</span>
                     </label>
-                    <p className="text-[11px] text-[#667085]">
-                      Sends internal in-app notifications until individual submission is approved
+                    <p className="text-[11px] text-[#667085] mt-0.5 leading-relaxed">
+                      Automatically dispatches push & in-app alerts of pending tasks to assigned employees at prescribed Indian Standard Time slots until individual submission is approved.
                     </p>
                   </div>
                   <input
                     type="checkbox"
                     checked={reminderEnabled}
                     onChange={(e) => setReminderEnabled(e.target.checked)}
-                    className="w-4 h-4 text-[#3157A4] rounded cursor-pointer"
+                    className="w-4 h-4 text-[#3157A4] rounded cursor-pointer mt-0.5"
                   />
                 </div>
 
                 {reminderEnabled && (
-                  <div className="p-3 bg-[#FBFBFC] rounded-xl border border-[#E4E8EF] space-y-3">
-                    <p className="text-xs font-medium text-[#172033]">Scheduled Daily Reminder Times (IST):</p>
-                    <div className="flex flex-wrap gap-2 items-center">
-                      {reminderTimes.map((t) => (
-                        <span
-                          key={t}
-                          className="px-2.5 py-1 text-xs rounded-lg bg-white border border-[#E4E8EF] text-[#172033] font-medium flex items-center gap-1.5"
-                        >
-                          <span>{t}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveReminderTime(t)}
-                            className="text-[#667085] hover:text-[#D64545] cursor-pointer"
-                          >
-                            <X size={12} />
-                          </button>
-                        </span>
-                      ))}
-
+                  <div className="p-4 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] space-y-4">
+                    {/* Presets Header */}
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <input
-                          type="time"
-                          value={newReminderTime}
-                          onChange={(e) => setNewReminderTime(e.target.value)}
-                          className="px-2 py-1 text-xs border border-[#E4E8EF] bg-white rounded-lg focus:outline-none"
-                        />
+                        <span className="text-xs font-bold text-[#172033]">
+                          Choose Reminder Time Slots (IST):
+                        </span>
+                        <span className="text-[10px] bg-blue-100 text-[#3157A4] font-semibold px-2 py-0.5 rounded-full">
+                          {reminderTimes.length} Active Slot(s)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px]">
                         <button
                           type="button"
-                          onClick={handleAddReminderTime}
-                          className="px-2 py-1 text-xs bg-[#EBF3FF] text-[#3157A4] font-semibold rounded-lg hover:bg-[#D9E8FF] cursor-pointer"
+                          onClick={handleSelectAllPresets}
+                          className="text-[#3157A4] font-medium hover:underline cursor-pointer"
                         >
-                          + Add
+                          Select All Standard
+                        </button>
+                        <span className="text-gray-300">•</span>
+                        <button
+                          type="button"
+                          onClick={handleClearSlots}
+                          className="text-[#D64545] font-medium hover:underline cursor-pointer"
+                        >
+                          Clear All
                         </button>
                       </div>
                     </div>
+
+                    {/* Preset Slot Buttons Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                      {PRESET_TIME_SLOTS.map((slot) => {
+                        const isSelected = reminderTimes.includes(slot.time);
+                        return (
+                          <button
+                            key={slot.time}
+                            type="button"
+                            onClick={() => handleTogglePresetSlot(slot.time)}
+                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                              isSelected
+                                ? 'bg-[#3157A4] border-[#3157A4] text-white shadow-xs'
+                                : 'bg-white border-[#E2E8F0] text-[#172033] hover:border-[#3157A4]/50 hover:bg-[#F0F5FF]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className="font-mono font-bold text-xs">
+                                {slot.label}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                                }`}
+                              >
+                                {slot.time}
+                              </span>
+                            </div>
+                            <span
+                              className={`text-[10px] mt-1.5 truncate ${
+                                isSelected ? 'text-blue-100' : 'text-[#667085]'
+                              }`}
+                            >
+                              {slot.desc}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Custom Time Slot Input */}
+                    <div className="pt-2 border-t border-[#E2E8F0] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <label className="text-[11px] font-semibold text-[#172033] shrink-0">
+                          Custom Time Slot (IST):
+                        </label>
+                        <input
+                          type="time"
+                          value={customSlot}
+                          onChange={(e) => setCustomSlot(e.target.value)}
+                          className="px-2.5 py-1.5 text-xs border border-[#CBD5E1] bg-white rounded-lg focus:outline-none focus:ring-1 focus:ring-[#3157A4] font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddCustomSlot}
+                          className="px-3 py-1.5 text-xs bg-[#EBF3FF] hover:bg-[#D9E8FF] text-[#3157A4] font-semibold rounded-lg transition-colors cursor-pointer"
+                        >
+                          + Add Slot
+                        </button>
+                      </div>
+
+                      <div className="text-[11px] text-[#667085] flex items-center gap-1.5">
+                        <Clock size={13} className="text-[#3157A4]" />
+                        <span>Dispatches daily at prescribed IST timings</span>
+                      </div>
+                    </div>
+
+                    {/* Selected Active Slots Summary */}
+                    {reminderTimes.length > 0 ? (
+                      <div className="space-y-1.5 pt-2 border-t border-[#E2E8F0]">
+                        <span className="text-[11px] font-semibold text-[#475569]">
+                          Active Daily Reminder Schedule (IST):
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {reminderTimes.map((t) => (
+                            <span
+                              key={t}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-[#3157A4]/30 text-[#172033] text-xs font-medium shadow-2xs"
+                            >
+                              <span className="font-mono text-[#3157A4] font-bold">{t}</span>
+                              <span className="text-[#64748B] text-[11px]">({formatTime12(t)} IST)</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveReminderTime(t)}
+                                className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer ml-0.5"
+                                title="Remove time slot"
+                              >
+                                <X size={13} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                        ⚠️ No reminder time slots selected. Please choose at least one slot so pending work notifications can be dispatched automatically.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

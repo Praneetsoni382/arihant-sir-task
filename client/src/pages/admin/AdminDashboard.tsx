@@ -20,6 +20,7 @@ import { dashboardApi } from '../../services/api';
 import { formatDate } from '../../utils/formatDate';
 import { getStatusColors, getStatusLabel, getPriorityColors, getPriorityLabel } from '../../utils/statusHelpers';
 import type { AdminDashboardData, TaskWithMembers } from '../../types';
+import { ISTClockWidget } from '../../components/dashboard/ISTClockWidget';
 
 export function AdminDashboard() {
   const navigate = useNavigate();
@@ -93,6 +94,9 @@ export function AdminDashboard() {
             </Button>
           </div>
         </div>
+
+        {/* Indian Standard Time (IST) Real-Time Clock & Automated Scheduler Banner */}
+        <ISTClockWidget />
 
         {/* 8.1 Exactly 4 Main Metric Block Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

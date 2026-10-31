@@ -1,7 +1,3 @@
-// ============================================================
-// REMINDERS ROUTES
-// ============================================================
-
 import { Router } from 'express';
 import {
   taskRepo,
@@ -9,12 +5,86 @@ import {
   userRepo,
   reminderRepo,
 } from '../repositories/inMemoryStore.js';
-import { requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { createNotification } from '../services/notificationService.js';
+import {
+  getISTClock,
+  getISTSchedulerStats,
+  checkAndDispatchPendingReminders,
+} from '../services/istSchedulerService.js';
 import { format } from 'date-fns';
 
 const router = Router();
+
+// ============================================================
+// IST CLOCK & AUTOMATED SCHEDULER STATUS (Authenticated)
+// ============================================================
+
+// GET /api/reminders/ist-status
+router.get(
+  '/ist-status',
+  requireAuth,
+  asyncHandler(async (_req, res) => {
+    const istClock = getISTClock();
+    const stats = getISTSchedulerStats();
+    
+    // Enrich with list of active pending tasks that have reminder slots configured
+    const activeTasks = taskRepo.findAll()
+      .filter((t) => t.status !== 'cancelled' && t.status !== 'approved' && t.reminderEnabled)
+      .map((t) => {
+        const members = taskMemberRepo.findByTask(t.id);
+        const pendingMembers = members.filter(
+          (m) => m.memberStatus !== 'approved' && m.memberStatus !== 'submitted_for_review'
+        );
+        return {
+          id: t.id,
+          referenceNumber: t.referenceNumber,
+          title: t.title,
+          deadline: t.deadline,
+          reminderTimes: t.reminderTimes || [],
+          pendingMembersCount: pendingMembers.length,
+          pendingMembers: pendingMembers.map((pm) => {
+            const u = userRepo.findById(pm.userId);
+            return {
+              userId: pm.userId,
+              fullName: u?.fullName || 'Employee',
+              memberStatus: pm.memberStatus,
+            };
+          }),
+        };
+      });
+
+    res.json({
+      success: true,
+      data: {
+        clock: istClock,
+        stats,
+        scheduledTasks: activeTasks,
+      },
+    });
+  })
+);
+
+// POST /api/reminders/trigger-ist (Admin manual trigger to dispatch now)
+router.post(
+  '/trigger-ist',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const { slot, forceAll, taskId } = req.body || {};
+    const result = await checkAndDispatchPendingReminders({
+      targetSlot: slot,
+      forceAll: forceAll !== undefined ? Boolean(forceAll) : true,
+      taskId,
+    });
+
+    res.json({
+      success: true,
+      message: `Triggered pending task notification dispatch (${result.dispatchedCount} notification(s) sent)`,
+      data: result,
+    });
+  })
+);
 
 interface ReminderResult {
   taskId: string;
