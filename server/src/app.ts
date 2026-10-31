@@ -35,6 +35,8 @@ app.set('trust proxy', 1);
 
 app.use(
   helmet({
+    frameguard: false,
+    contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
@@ -123,11 +125,10 @@ if (fs.existsSync(clientDistPath)) {
 }
 
 // ============================================================
-// ERROR HANDLING
+// ERROR HANDLING FOR API ROUTES
 // ============================================================
 
 app.all('/api/*', notFound);
-app.use(notFound);
 app.use(errorHandler);
 
 export default app;

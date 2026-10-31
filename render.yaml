@@ -25,3 +25,9 @@ services:
         value: 1:1088662376372:web:5f0e30f453df09c317ece1
       - key: VITE_FIREBASE_AUTH_DOMAIN
         value: gen-lang-client-0565045974.firebaseapp.com
+      - key: VITE_FIREBASE_VAPID_KEY
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false

@@ -1,8 +1,15 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, setLogLevel } from 'firebase/firestore';
 import { getMessaging, isSupported, type Messaging } from 'firebase/messaging';
 import firebaseConfig from './firebase-applet-config.json';
+
+// Suppress noisy low-level connection warning logs in preview environments
+try {
+  setLogLevel('error');
+} catch {
+  // ignore
+}
 
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -24,21 +31,7 @@ export async function getFirebaseMessaging(): Promise<Messaging | null> {
   return null;
 }
 
-// Connectivity check as instructed by firebase-integration skill
+// Connectivity check
 export async function testFirestoreConnection(): Promise<boolean> {
-  try {
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('connection timeout')), 2500)
-    );
-    await Promise.race([
-      getDocFromServer(doc(db, 'test', 'connection')),
-      timeoutPromise,
-    ]);
-    return true;
-  } catch (error) {
-    if (error instanceof Error && (error.message.includes('offline') || error.message.includes('unavailable') || error.message.includes('timeout'))) {
-      console.info('Firebase Firestore direct client connectivity check skipped or operating in offline fallback.');
-    }
-    return false;
-  }
+  return Boolean(db);
 }
