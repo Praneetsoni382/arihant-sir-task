@@ -149,39 +149,44 @@ export async function requestAndRegisterPush(userId: string): Promise<{
       };
     }
 
-    // 4. Fetch public VAPID key from backend config
-    let vapidKey = '';
-    try {
-      const configRes = await pushApi.getConfig();
-      vapidKey = (configRes.data?.data as PushConfig | undefined)?.vapidKey || '';
-    } catch {
-      // Continue with empty vapidKey if backend uses default
+    // 4. Fetch public VAPID key (from env or backend config)
+    let vapidKey = (import.meta.env.VITE_FIREBASE_VAPID_KEY as string) || '';
+    if (!vapidKey) {
+      try {
+        const configRes = await pushApi.getConfig();
+        vapidKey = (configRes.data?.data as PushConfig | undefined)?.vapidKey || '';
+      } catch {
+        // ignore
+      }
     }
 
-    // 5. Retrieve FCM Web Push Registration Token
+    // 5. Retrieve REAL FCM Web Push Registration Token from Google Push Service
+    const tokenOptions: { serviceWorkerRegistration?: ServiceWorkerRegistration; vapidKey?: string } = {};
+    if (swRegistration) {
+      tokenOptions.serviceWorkerRegistration = swRegistration;
+    }
+    if (vapidKey && vapidKey.length > 10) {
+      tokenOptions.vapidKey = vapidKey;
+    }
+
     let token = '';
     try {
-      const tokenOptions: { serviceWorkerRegistration?: ServiceWorkerRegistration; vapidKey?: string } = {};
-      if (swRegistration) {
-        tokenOptions.serviceWorkerRegistration = swRegistration;
-      }
-      if (vapidKey && vapidKey.length > 10) {
-        tokenOptions.vapidKey = vapidKey;
-      }
-
       token = await getToken(messaging, tokenOptions);
     } catch (tokenErr) {
-      console.warn('[FCM] Error generating FCM token:', tokenErr);
-      // Fallback: Generate local deterministic registration token for demonstration/mock environments
-      const deviceId = getDeviceId();
-      token = `fcm-token-${deviceId}-${Date.now()}`;
+      const msg = tokenErr instanceof Error ? tokenErr.message : String(tokenErr);
+      console.error('[FCM] Error generating real FCM token:', msg);
+      return {
+        success: false,
+        permission: 'granted',
+        error: `FCM Token Error: ${msg}. Please check VAPID key configuration.`,
+      };
     }
 
     if (!token) {
       return {
         success: false,
         permission: 'granted',
-        error: 'Failed to generate FCM registration token.',
+        error: 'Failed to generate FCM registration token from Google Cloud Messaging.',
       };
     }
 

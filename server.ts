@@ -1,14 +1,23 @@
 import path from 'path';
-import app from './server/src/app.js';
-import { seedStore } from './server/src/repositories/inMemoryStore.js';
+import fs from 'fs';
 
-const PORT = Number(process.env.PORT || 3000);
+const distServerPath = path.resolve(process.cwd(), 'server/dist/server.js');
 
 async function startServer() {
   try {
-    await seedStore();
+    if (fs.existsSync(distServerPath)) {
+      // Production deployment (e.g. Render after npm run build)
+      await import('./server/dist/server.js');
+    } else {
+      // Local development environment (via tsx + Vite middleware)
+      const appModule = await import('./server/src/app.js');
+      const storeModule = await import('./server/src/repositories/inMemoryStore.js');
+      const app = appModule.default;
+      const { seedStore } = storeModule;
 
-    if (process.env.NODE_ENV !== 'production') {
+      const PORT = Number(process.env.PORT || 3000);
+      await seedStore();
+
       const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
         server: { middlewareMode: true },
@@ -18,17 +27,15 @@ async function startServer() {
       });
 
       app.use(vite.middlewares);
-    }
 
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`\n🚀 Task Management Platform API running on http://0.0.0.0:${PORT}`);
-      console.log(`   Health check: http://0.0.0.0:${PORT}/api/health`);
-      console.log(`\n👑 System Administrator Account:`);
-      console.log(`   Email:      admin@company.com`);
-      console.log(`   Password:   Admin@2024!`);
-      console.log(`\n👥 Employee Accounts:`);
-      console.log(`   Create employees in Admin Dashboard (/admin/employees)\n`);
-    });
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`\n🚀 Task Management Platform API running on http://0.0.0.0:${PORT}`);
+        console.log(`   Health check: http://0.0.0.0:${PORT}/api/health`);
+        console.log(`\n👑 System Administrator Account:`);
+        console.log(`   Email:      admin@company.com`);
+        console.log(`   Password:   Admin@2024!\n`);
+      });
+    }
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);
@@ -36,4 +43,5 @@ async function startServer() {
 }
 
 startServer();
+
 
