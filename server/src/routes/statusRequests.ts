@@ -88,20 +88,20 @@ router.post(
       return;
     }
 
-    const response = statusResponseRepo.create({
+    const response = await statusResponseRepo.create({
       statusRequestId: sr.id,
       responderUserId: req.session.userId!,
       responseText: parse.data.responseText,
       createdAt: new Date().toISOString(),
     });
 
-    statusRequestRepo.update(sr.id, { status: 'answered' });
+    await statusRequestRepo.update(sr.id, { status: 'answered' });
 
     const task = taskRepo.findById(sr.taskId);
     const responder = userRepo.findById(req.session.userId!);
     if (task && responder) {
       const tmpl = notifTemplates.statusResponseReceived(responder.fullName, task.title);
-      createNotification({
+      await createNotification({
         recipientUserId: sr.createdBy,
         eventType: 'STATUS_RESPONSE_RECEIVED',
         title: tmpl.title,
@@ -111,7 +111,7 @@ router.post(
       });
     }
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'status_request',
       entityId: sr.id,
@@ -159,7 +159,7 @@ taskStatusRequestRouter.post(
       const member = taskMemberRepo.findByTaskAndUser(task.id, userId);
       if (!member) continue;
 
-      const sr = statusRequestRepo.create({
+      const sr = await statusRequestRepo.create({
         taskId: task.id,
         createdBy: req.session.userId!,
         recipientUserId: userId,
@@ -170,7 +170,7 @@ taskStatusRequestRouter.post(
       });
 
       const tmpl = notifTemplates.statusRequested(task.title);
-      createNotification({
+      await createNotification({
         recipientUserId: userId,
         eventType: 'STATUS_REQUESTED',
         title: tmpl.title,
@@ -183,7 +183,7 @@ taskStatusRequestRouter.post(
       created.push(sr);
     }
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'status_request',
       entityId: task.id,

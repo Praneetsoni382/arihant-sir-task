@@ -1,8 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCheck, Bell, ExternalLink } from 'lucide-react';
-import { notificationApi } from '../../services/api';
+import { useState } from 'react';
+import { CheckCheck, Bell, ExternalLink, Send, ShieldCheck, AlertCircle } from 'lucide-react';
+import { notificationApi, pushApi } from '../../services/api';
 import { formatRelative } from '../../utils/formatDate';
+import { getNotificationPermission, requestAndRegisterPush } from '../../services/fcm';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Notification } from '../../types';
 
 interface NotificationDropdownProps {
@@ -20,6 +23,11 @@ export function NotificationDropdown({
 }: NotificationDropdownProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [testPushStatus, setTestPushStatus] = useState<string | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+
+  const permission = getNotificationPermission();
 
   const markAllReadMutation = useMutation({
     mutationFn: () => notificationApi.markAllRead(),
@@ -34,6 +42,30 @@ export function NotificationDropdown({
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
+
+  const handleTestPush = async () => {
+    if (!user) return;
+    setIsTesting(true);
+    setTestPushStatus(null);
+    try {
+      if (permission !== 'granted') {
+        const reg = await requestAndRegisterPush(user.id);
+        if (!reg.success) {
+          setTestPushStatus('Permission required');
+          setIsTesting(false);
+          return;
+        }
+      }
+      const res = await pushApi.sendTestPush();
+      setTestPushStatus(res.data?.message || 'Push sent!');
+      setTimeout(() => setTestPushStatus(null), 4000);
+    } catch (err: any) {
+      setTestPushStatus(err?.response?.data?.error || 'Test failed');
+      setTimeout(() => setTestPushStatus(null), 4000);
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const handleNotificationClick = (notif: Notification) => {
     if (!notif.readAt) {
@@ -72,6 +104,43 @@ export function NotificationDropdown({
             <span>Mark all read</span>
           </button>
         )}
+      </div>
+
+      {/* Browser Push Status & Test Bar */}
+      <div className="px-3.5 py-2 bg-[#F5F8FC] border-b border-[#E4E8EF] flex items-center justify-between text-[11px]">
+        <div className="flex items-center gap-1.5">
+          {permission === 'granted' ? (
+            <span className="flex items-center gap-1 text-emerald-700 font-medium">
+              <ShieldCheck size={13} className="text-emerald-600" />
+              <span>Push: Active</span>
+            </span>
+          ) : permission === 'denied' ? (
+            <span className="flex items-center gap-1 text-red-600 font-medium">
+              <AlertCircle size={13} />
+              <span>Push: Blocked in Browser</span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-[#667085] font-medium">
+              <Bell size={13} />
+              <span>Push: Inactive</span>
+            </span>
+          )}
+        </div>
+
+        <button
+          onClick={handleTestPush}
+          disabled={isTesting}
+          className="text-[11px] font-medium text-[#3157A4] hover:text-[#274987] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+        >
+          {isTesting ? (
+            <span>Sending...</span>
+          ) : (
+            <>
+              <Send size={11} />
+              <span>{testPushStatus || (permission === 'granted' ? 'Send Test Push' : 'Enable Push')}</span>
+            </>
+          )}
+        </button>
       </div>
 
       <div className="max-h-80 overflow-y-auto divide-y divide-[#E4E8EF]">

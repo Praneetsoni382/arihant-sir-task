@@ -1,20 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  FileText,
-  Download,
-  Filter,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-} from 'lucide-react';
+import { Download, AlertTriangle } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { PageLoader } from '../../components/ui/LoadingSpinner';
 import { reportApi, employeeApi } from '../../services/api';
-import { formatDate } from '../../utils/formatDate';
 import { getStatusColors, getStatusLabel } from '../../utils/statusHelpers';
 import type { User } from '../../types';
 

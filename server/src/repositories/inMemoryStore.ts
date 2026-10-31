@@ -24,6 +24,8 @@ import type {
   Notification,
   AuditEvent,
   ReminderOccurrence,
+  Device,
+  PushPreferences,
 } from '../types/index.js';
 
 // ============================================================
@@ -42,6 +44,8 @@ interface Store {
   notifications: Notification[];
   auditEvents: AuditEvent[];
   reminderOccurrences: ReminderOccurrence[];
+  devices: Device[];
+  pushPreferences: Record<string, PushPreferences>;
   taskCounter: number;
 }
 
@@ -57,6 +61,8 @@ const store: Store = {
   notifications: [],
   auditEvents: [],
   reminderOccurrences: [],
+  devices: [],
+  pushPreferences: {},
   taskCounter: 1000,
 };
 
@@ -79,7 +85,8 @@ async function syncToFirestore(collection: string, docId: string, data: any): Pr
   try {
     await firestoreDb.docSet(collection, docId, data);
   } catch (err) {
-    console.warn(`Firestore sync notice (${collection}/${docId}):`, err instanceof Error ? err.message : err);
+    console.error(`❌ Firestore write error (${collection}/${docId}):`, err instanceof Error ? err.message : err);
+    throw err;
   }
 }
 
@@ -122,31 +129,26 @@ export async function seedStore(forceReset = false): Promise<void> {
       const usersData = await firestoreDb.collectionGetAll('users');
       if (usersData && usersData.length > 0) {
         console.log(`🔥 Synchronizing authoritative users from Cloud Firestore...`);
-        // Purge dummy demo users from Firestore load
-        const demoEmails = ['priya.mehta@company.com', 'rahul.gupta@company.com', 'sneha.patel@company.com', 'vikram.nair@company.com'];
-        store.users = (usersData as User[])
-          .filter((u) => u && u.email && u.id && !demoEmails.includes(u.email) && !u.id.startsWith('usr-emp-'));
+        store.users = (usersData as User[]).filter((u) => u && u.email && u.id);
 
         const tasksData = await firestoreDb.collectionGetAll('tasks');
-        store.tasks = (tasksData as Task[])
-          .filter((t) => t && t.id && !t.id.startsWith('task-demo-'));
+        store.tasks = (tasksData as Task[]).filter((t) => t && t.id);
 
         const membersData = await firestoreDb.collectionGetAll('taskMembers');
-        store.taskMembers = (membersData as TaskMember[])
-          .filter((m) => m && m.id && !m.id.startsWith('tm-'));
+        store.taskMembers = (membersData as TaskMember[]).filter((m) => m && m.id);
 
         const srData = await firestoreDb.collectionGetAll('statusRequests');
-        store.statusRequests = srData as StatusRequest[];
+        store.statusRequests = (srData as StatusRequest[]).filter((s) => s && s.id);
 
         const queriesData = await firestoreDb.collectionGetAll('queries');
-        store.queries = queriesData as Query[];
+        store.queries = (queriesData as Query[]).filter((q) => q && q.id);
 
         const notifData = await firestoreDb.collectionGetAll('notifications');
-        store.notifications = notifData as Notification[];
+        store.notifications = (notifData as Notification[]).filter((n) => n && n.id);
 
         const auditData = await firestoreDb.collectionGetAll('auditEvents');
         if (auditData.length > 0) {
-          store.auditEvents = auditData as AuditEvent[];
+          store.auditEvents = (auditData as AuditEvent[]).filter((a) => a && a.id);
         }
 
         // Ensure single admin exists
@@ -167,10 +169,6 @@ export async function seedStore(forceReset = false): Promise<void> {
     try {
       const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
       if (snapshot.users && snapshot.users.length > 0) {
-        const demoEmails = ['priya.mehta@company.com', 'rahul.gupta@company.com', 'sneha.patel@company.com', 'vikram.nair@company.com'];
-        snapshot.users = snapshot.users.filter((u: User) => !demoEmails.includes(u.email) && !u.id.startsWith('usr-emp-'));
-        snapshot.tasks = (snapshot.tasks || []).filter((t: Task) => !t.id.startsWith('task-demo-'));
-        snapshot.taskMembers = (snapshot.taskMembers || []).filter((m: TaskMember) => !m.id.startsWith('tm-'));
         Object.assign(store, snapshot);
         
         const hasAdmin = store.users.some((u) => u.role === 'admin' && u.email === 'admin@company.com');
@@ -219,7 +217,7 @@ export async function seedStore(forceReset = false): Promise<void> {
   persistSnapshot();
 
   // Sync the single authoritative administrator to Firestore
-  syncToFirestore('users', admin.id, admin);
+  await syncToFirestore('users', admin.id, admin);
 
   console.log('[Seed] Database initialized with single Administrator account (admin@company.com). All dummy data purged.');
 }
@@ -241,20 +239,20 @@ export const userRepo = {
   findByEmployeeId(employeeId: string): User | undefined {
     return store.users.find((u) => u.employeeId === employeeId);
   },
-  create(data: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): User {
+  async create(data: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
     const now = new Date().toISOString();
     const user: User = { ...data, id: newId(), createdAt: now, updatedAt: now };
     store.users.push(user);
     persistSnapshot();
-    syncToFirestore('users', user.id, user);
+    await syncToFirestore('users', user.id, user);
     return user;
   },
-  update(id: string, data: Partial<User>): User | undefined {
+  async update(id: string, data: Partial<User>): Promise<User | undefined> {
     const idx = store.users.findIndex((u) => u.id === id);
     if (idx === -1) return undefined;
     store.users[idx] = { ...store.users[idx], ...data, updatedAt: new Date().toISOString() };
     persistSnapshot();
-    syncToFirestore('users', id, store.users[idx]);
+    await syncToFirestore('users', id, store.users[idx]);
     return store.users[idx];
   },
 };
@@ -276,20 +274,20 @@ export const taskRepo = {
       .map((tm) => tm.taskId);
     return store.tasks.filter((t) => memberTaskIds.includes(t.id));
   },
-  create(data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Task {
+  async create(data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
     const now = new Date().toISOString();
     const task: Task = { ...data, id: newId(), createdAt: now, updatedAt: now };
     store.tasks.push(task);
     persistSnapshot();
-    syncToFirestore('tasks', task.id, task);
+    await syncToFirestore('tasks', task.id, task);
     return task;
   },
-  update(id: string, data: Partial<Task>): Task | undefined {
+  async update(id: string, data: Partial<Task>): Promise<Task | undefined> {
     const idx = store.tasks.findIndex((t) => t.id === id);
     if (idx === -1) return undefined;
     store.tasks[idx] = { ...store.tasks[idx], ...data, updatedAt: new Date().toISOString() };
     persistSnapshot();
-    syncToFirestore('tasks', id, store.tasks[idx]);
+    await syncToFirestore('tasks', id, store.tasks[idx]);
     return store.tasks[idx];
   },
 };
@@ -311,21 +309,21 @@ export const taskMemberRepo = {
   findByTaskAndUser(taskId: string, userId: string): TaskMember | undefined {
     return store.taskMembers.find((tm) => tm.taskId === taskId && tm.userId === userId);
   },
-  create(data: Omit<TaskMember, 'id'>): TaskMember {
+  async create(data: Omit<TaskMember, 'id'>): Promise<TaskMember> {
     const member: TaskMember = { ...data, id: newId() };
     store.taskMembers.push(member);
     persistSnapshot();
-    syncToFirestore('taskMembers', member.id, member);
-    syncToFirestore(`tasks/${member.taskId}/members`, member.id, member);
+    await syncToFirestore('taskMembers', member.id, member);
+    await syncToFirestore(`tasks/${member.taskId}/members`, member.id, member);
     return member;
   },
-  update(id: string, data: Partial<TaskMember>): TaskMember | undefined {
+  async update(id: string, data: Partial<TaskMember>): Promise<TaskMember | undefined> {
     const idx = store.taskMembers.findIndex((tm) => tm.id === id);
     if (idx === -1) return undefined;
     store.taskMembers[idx] = { ...store.taskMembers[idx], ...data };
     persistSnapshot();
-    syncToFirestore('taskMembers', id, store.taskMembers[idx]);
-    syncToFirestore(`tasks/${store.taskMembers[idx].taskId}/members`, id, store.taskMembers[idx]);
+    await syncToFirestore('taskMembers', id, store.taskMembers[idx]);
+    await syncToFirestore(`tasks/${store.taskMembers[idx].taskId}/members`, id, store.taskMembers[idx]);
     return store.taskMembers[idx];
   },
 };
@@ -347,19 +345,19 @@ export const statusRequestRepo = {
   findByRecipient(userId: string): StatusRequest[] {
     return store.statusRequests.filter((sr) => sr.recipientUserId === userId);
   },
-  create(data: Omit<StatusRequest, 'id'>): StatusRequest {
+  async create(data: Omit<StatusRequest, 'id'>): Promise<StatusRequest> {
     const sr: StatusRequest = { ...data, id: newId() };
     store.statusRequests.push(sr);
     persistSnapshot();
-    syncToFirestore('statusRequests', sr.id, sr);
+    await syncToFirestore('statusRequests', sr.id, sr);
     return sr;
   },
-  update(id: string, data: Partial<StatusRequest>): StatusRequest | undefined {
+  async update(id: string, data: Partial<StatusRequest>): Promise<StatusRequest | undefined> {
     const idx = store.statusRequests.findIndex((sr) => sr.id === id);
     if (idx === -1) return undefined;
     store.statusRequests[idx] = { ...store.statusRequests[idx], ...data };
     persistSnapshot();
-    syncToFirestore('statusRequests', id, store.statusRequests[idx]);
+    await syncToFirestore('statusRequests', id, store.statusRequests[idx]);
     return store.statusRequests[idx];
   },
 };
@@ -375,11 +373,11 @@ export const statusResponseRepo = {
   findByRequests(requestIds: string[]): StatusResponse[] {
     return store.statusResponses.filter((sr) => requestIds.includes(sr.statusRequestId));
   },
-  create(data: Omit<StatusResponse, 'id'>): StatusResponse {
+  async create(data: Omit<StatusResponse, 'id'>): Promise<StatusResponse> {
     const sr: StatusResponse = { ...data, id: newId() };
     store.statusResponses.push(sr);
     persistSnapshot();
-    syncToFirestore('statusResponses', sr.id, sr);
+    await syncToFirestore('statusResponses', sr.id, sr);
     return sr;
   },
 };
@@ -401,20 +399,20 @@ export const queryRepo = {
   findByUser(userId: string): Query[] {
     return store.queries.filter((q) => q.createdBy === userId);
   },
-  create(data: Omit<Query, 'id' | 'createdAt' | 'updatedAt'>): Query {
+  async create(data: Omit<Query, 'id' | 'createdAt' | 'updatedAt'>): Promise<Query> {
     const now = new Date().toISOString();
     const query: Query = { ...data, id: newId(), createdAt: now, updatedAt: now };
     store.queries.push(query);
     persistSnapshot();
-    syncToFirestore('queries', query.id, query);
+    await syncToFirestore('queries', query.id, query);
     return query;
   },
-  update(id: string, data: Partial<Query>): Query | undefined {
+  async update(id: string, data: Partial<Query>): Promise<Query | undefined> {
     const idx = store.queries.findIndex((q) => q.id === id);
     if (idx === -1) return undefined;
     store.queries[idx] = { ...store.queries[idx], ...data, updatedAt: new Date().toISOString() };
     persistSnapshot();
-    syncToFirestore('queries', id, store.queries[idx]);
+    await syncToFirestore('queries', id, store.queries[idx]);
     return store.queries[idx];
   },
 };
@@ -429,12 +427,12 @@ export const queryMessageRepo = {
       .filter((qm) => qm.queryId === queryId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   },
-  create(data: Omit<QueryMessage, 'id'>): QueryMessage {
+  async create(data: Omit<QueryMessage, 'id'>): Promise<QueryMessage> {
     const qm: QueryMessage = { ...data, id: newId() };
     store.queryMessages.push(qm);
     persistSnapshot();
-    syncToFirestore('queryMessages', qm.id, qm);
-    syncToFirestore(`queries/${qm.queryId}/messages`, qm.id, qm);
+    await syncToFirestore('queryMessages', qm.id, qm);
+    await syncToFirestore(`queries/${qm.queryId}/messages`, qm.id, qm);
     return qm;
   },
 };
@@ -449,12 +447,12 @@ export const chatMessageRepo = {
       .filter((cm) => cm.taskId === taskId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   },
-  create(data: Omit<ChatMessage, 'id'>): ChatMessage {
+  async create(data: Omit<ChatMessage, 'id'>): Promise<ChatMessage> {
     const cm: ChatMessage = { ...data, id: newId() };
     store.chatMessages.push(cm);
     persistSnapshot();
-    syncToFirestore('chatMessages', cm.id, cm);
-    syncToFirestore(`tasks/${cm.taskId}/messages`, cm.id, cm);
+    await syncToFirestore('chatMessages', cm.id, cm);
+    await syncToFirestore(`tasks/${cm.taskId}/messages`, cm.id, cm);
     return cm;
   },
 };
@@ -472,30 +470,29 @@ export const notificationRepo = {
   findById(id: string): Notification | undefined {
     return store.notifications.find((n) => n.id === id);
   },
-  create(data: Omit<Notification, 'id'>): Notification {
+  async create(data: Omit<Notification, 'id'>): Promise<Notification> {
     const n: Notification = { ...data, id: newId() };
     store.notifications.push(n);
     persistSnapshot();
-    syncToFirestore('notifications', n.id, n);
+    await syncToFirestore('notifications', n.id, n);
     return n;
   },
-  update(id: string, data: Partial<Notification>): Notification | undefined {
+  async update(id: string, data: Partial<Notification>): Promise<Notification | undefined> {
     const idx = store.notifications.findIndex((n) => n.id === id);
     if (idx === -1) return undefined;
     store.notifications[idx] = { ...store.notifications[idx], ...data };
     persistSnapshot();
-    syncToFirestore('notifications', id, store.notifications[idx]);
+    await syncToFirestore('notifications', id, store.notifications[idx]);
     return store.notifications[idx];
   },
-  markAllRead(userId: string): void {
+  async markAllRead(userId: string): Promise<void> {
     const now = new Date().toISOString();
-    store.notifications
-      .filter((n) => n.recipientUserId === userId && !n.readAt)
-      .forEach((n) => {
-        n.readAt = now;
-        n.deliveryState = 'read';
-        syncToFirestore('notifications', n.id, n);
-      });
+    const targets = store.notifications.filter((n) => n.recipientUserId === userId && !n.readAt);
+    for (const n of targets) {
+      n.readAt = now;
+      n.deliveryState = 'read';
+      await syncToFirestore('notifications', n.id, n);
+    }
     persistSnapshot();
   },
 };
@@ -513,11 +510,11 @@ export const auditRepo = {
   findAll(): AuditEvent[] {
     return [...store.auditEvents].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
-  create(data: Omit<AuditEvent, 'id'>): AuditEvent {
+  async create(data: Omit<AuditEvent, 'id'>): Promise<AuditEvent> {
     const event: AuditEvent = { ...data, id: newId() };
     store.auditEvents.push(event);
     persistSnapshot();
-    syncToFirestore('auditEvents', event.id, event);
+    await syncToFirestore('auditEvents', event.id, event);
     return event;
   },
 };
@@ -535,20 +532,213 @@ export const reminderRepo = {
       (r) => r.taskId === taskId && r.recipientUserId === userId
     );
   },
-  create(data: Omit<ReminderOccurrence, 'id'>): ReminderOccurrence {
+  async create(data: Omit<ReminderOccurrence, 'id'>): Promise<ReminderOccurrence> {
     const r: ReminderOccurrence = { ...data, id: newId() };
     store.reminderOccurrences.push(r);
     persistSnapshot();
-    syncToFirestore('reminderOccurrences', r.id, r);
+    await syncToFirestore('reminderOccurrences', r.id, r);
     return r;
   },
-  update(id: string, data: Partial<ReminderOccurrence>): ReminderOccurrence | undefined {
+  async update(id: string, data: Partial<ReminderOccurrence>): Promise<ReminderOccurrence | undefined> {
     const idx = store.reminderOccurrences.findIndex((r) => r.id === id);
     if (idx === -1) return undefined;
     store.reminderOccurrences[idx] = { ...store.reminderOccurrences[idx], ...data };
     persistSnapshot();
-    syncToFirestore('reminderOccurrences', id, store.reminderOccurrences[idx]);
+    await syncToFirestore('reminderOccurrences', id, store.reminderOccurrences[idx]);
     return store.reminderOccurrences[idx];
+  },
+};
+
+// ============================================================
+// DEVICE REPOSITORY (Web Push FCM Tokens)
+// ============================================================
+
+export const deviceRepo = {
+  findByUser(userId: string): Device[] {
+    return (store.devices || []).filter((d) => d.userId === userId);
+  },
+
+  findActiveByUser(userId: string): Device[] {
+    return (store.devices || []).filter(
+      (d) => d.userId === userId && d.isActive && d.fcmToken && d.fcmToken.length > 0
+    );
+  },
+
+  findByDeviceId(deviceId: string, userId?: string): Device | undefined {
+    return (store.devices || []).find(
+      (d) => (userId ? d.userId === userId : true) && d.deviceId === deviceId
+    );
+  },
+
+  async registerDevice(deviceData: {
+    deviceId: string;
+    userId: string;
+    fcmToken: string;
+    platform?: 'WEB';
+    browserName?: string;
+    userAgent?: string;
+    permissionStatus?: 'default' | 'granted' | 'denied';
+  }): Promise<Device> {
+    if (!store.devices) store.devices = [];
+    const now = new Date().toISOString();
+
+    // Account switching protection: if token or deviceId was associated with another user,
+    // deactivate the previous association so previous user does not receive notifications
+    for (const existing of store.devices) {
+      if (
+        (existing.deviceId === deviceData.deviceId || existing.fcmToken === deviceData.fcmToken) &&
+        existing.userId !== deviceData.userId
+      ) {
+        existing.isActive = false;
+        existing.updatedAt = now;
+        await syncToFirestore(`users/${existing.userId}/devices`, existing.deviceId, existing);
+      }
+    }
+
+    const existingIdx = store.devices.findIndex(
+      (d) => d.userId === deviceData.userId && d.deviceId === deviceData.deviceId
+    );
+
+    let device: Device;
+    if (existingIdx !== -1) {
+      // Update existing device
+      device = {
+        ...store.devices[existingIdx],
+        fcmToken: deviceData.fcmToken,
+        browserName: deviceData.browserName || store.devices[existingIdx].browserName || 'Browser',
+        userAgent: deviceData.userAgent || store.devices[existingIdx].userAgent || '',
+        permissionStatus: deviceData.permissionStatus || 'granted',
+        isActive: true,
+        updatedAt: now,
+        lastSeenAt: now,
+        tokenVersion: 'v1',
+      };
+      store.devices[existingIdx] = device;
+    } else {
+      // Register new device
+      device = {
+        deviceId: deviceData.deviceId,
+        userId: deviceData.userId,
+        fcmToken: deviceData.fcmToken,
+        platform: 'WEB',
+        browserName: deviceData.browserName || 'Browser',
+        userAgent: deviceData.userAgent || '',
+        permissionStatus: deviceData.permissionStatus || 'granted',
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+        lastSeenAt: now,
+        lastSuccessfulSendAt: null,
+        lastErrorAt: null,
+        tokenVersion: 'v1',
+      };
+      store.devices.push(device);
+    }
+
+    persistSnapshot();
+    await syncToFirestore(`users/${device.userId}/devices`, device.deviceId, device);
+    return device;
+  },
+
+  async updateDevice(
+    userId: string,
+    deviceId: string,
+    data: Partial<Device>
+  ): Promise<Device | undefined> {
+    if (!store.devices) store.devices = [];
+    const idx = store.devices.findIndex(
+      (d) => d.userId === userId && d.deviceId === deviceId
+    );
+    if (idx === -1) return undefined;
+
+    store.devices[idx] = {
+      ...store.devices[idx],
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+    persistSnapshot();
+    await syncToFirestore(`users/${userId}/devices`, deviceId, store.devices[idx]);
+    return store.devices[idx];
+  },
+
+  async deactivateDevice(userId: string, deviceId: string): Promise<boolean> {
+    if (!store.devices) return false;
+    const device = store.devices.find((d) => (userId ? d.userId === userId : true) && d.deviceId === deviceId);
+    if (!device) return false;
+    device.isActive = false;
+    device.updatedAt = new Date().toISOString();
+    persistSnapshot();
+    await syncToFirestore(`users/${device.userId}/devices`, deviceId, device);
+    return true;
+  },
+
+  async deactivateByToken(fcmToken: string): Promise<void> {
+    if (!store.devices) return;
+    const now = new Date().toISOString();
+    for (const d of store.devices) {
+      if (d.fcmToken === fcmToken) {
+        d.isActive = false;
+        d.lastErrorAt = now;
+        d.updatedAt = now;
+        await syncToFirestore(`users/${d.userId}/devices`, d.deviceId, d);
+      }
+    }
+    persistSnapshot();
+  },
+
+  async removeDevice(userId: string, deviceId: string): Promise<boolean> {
+    if (!store.devices) return false;
+    const idx = store.devices.findIndex((d) => d.userId === userId && d.deviceId === deviceId);
+    if (idx === -1) return false;
+    store.devices.splice(idx, 1);
+    persistSnapshot();
+    return true;
+  },
+};
+
+// ============================================================
+// PUSH PREFERENCES REPOSITORY
+// ============================================================
+
+export const pushPrefRepo = {
+  getPreferences(userId: string): PushPreferences {
+    if (!store.pushPreferences) store.pushPreferences = {};
+    if (!store.pushPreferences[userId]) {
+      store.pushPreferences[userId] = {
+        userId,
+        enabled: true,
+        categories: {
+          taskAssignments: true,
+          statusRequests: true,
+          queries: true,
+          reminders: true,
+          messages: true,
+          approvals: true,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return store.pushPreferences[userId];
+  },
+
+  async updatePreferences(
+    userId: string,
+    data: { enabled?: boolean; categories?: Partial<PushPreferences['categories']> }
+  ): Promise<PushPreferences> {
+    const current = this.getPreferences(userId);
+    const updated: PushPreferences = {
+      ...current,
+      ...(data.enabled !== undefined ? { enabled: data.enabled } : {}),
+      categories: {
+        ...current.categories,
+        ...(data.categories || {}),
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    store.pushPreferences[userId] = updated;
+    persistSnapshot();
+    await syncToFirestore(`users/${userId}/preferences`, 'push', updated);
+    return updated;
   },
 };
 

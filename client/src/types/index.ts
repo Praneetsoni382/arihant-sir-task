@@ -182,6 +182,47 @@ export interface Notification {
   createdAt: string;
   deliveryState: 'pending' | 'delivered' | 'read';
   navigationUrl: string | null;
+  pushStatus?: 'pending' | 'sent' | 'failed' | 'no_active_devices' | 'skipped';
+  pushSentAt?: string | null;
+  pushErrorCode?: string | null;
+}
+
+export interface Device {
+  deviceId: string;
+  userId: string;
+  fcmToken: string;
+  platform: 'WEB';
+  browserName: string;
+  userAgent: string;
+  permissionStatus: 'default' | 'granted' | 'denied';
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastSeenAt: string;
+  lastSuccessfulSendAt: string | null;
+  lastErrorAt: string | null;
+  tokenVersion: string;
+}
+
+export interface PushPreferences {
+  userId: string;
+  enabled: boolean;
+  categories: {
+    taskAssignments: boolean;
+    statusRequests: boolean;
+    queries: boolean;
+    reminders: boolean;
+    messages: boolean;
+    approvals: boolean;
+  };
+  updatedAt: string;
+}
+
+export interface PushConfig {
+  projectId: string;
+  messagingSenderId: string;
+  vapidKey: string;
+  isConfigured: boolean;
 }
 
 export interface AuditEvent {

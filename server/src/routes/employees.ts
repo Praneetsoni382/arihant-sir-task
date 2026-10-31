@@ -86,7 +86,7 @@ router.post(
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = userRepo.create({
+    const user = await userRepo.create({
       employeeId,
       fullName,
       email,
@@ -110,7 +110,7 @@ router.post(
       }
     }
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'user',
       entityId: user.id,
@@ -166,13 +166,13 @@ router.patch(
       return;
     }
 
-    const updated = userRepo.update(req.params.id, parse.data);
+    const updated = await userRepo.update(req.params.id, parse.data);
     if (!updated) {
       res.status(500).json({ success: false, error: 'Update failed' });
       return;
     }
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'user',
       entityId: user.id,
@@ -203,7 +203,7 @@ router.patch(
       return;
     }
 
-    const updated = userRepo.update(req.params.id, { active: parse.data.active });
+    const updated = await userRepo.update(req.params.id, { active: parse.data.active });
     if (!updated) {
       res.status(500).json({ success: false, error: 'Update failed' });
       return;
@@ -219,7 +219,7 @@ router.patch(
       }
     }
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'user',
       entityId: user.id,

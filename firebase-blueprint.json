@@ -155,9 +155,35 @@
         "relatedEntityId": { "type": "string", "maxLength": 128 },
         "read": { "type": "boolean" },
         "readAt": { "type": "string" },
-        "createdAt": { "type": "string" }
+        "createdAt": { "type": "string" },
+        "navigationTarget": { "type": "string", "maxLength": 512 },
+        "pushStatus": { "type": "string", "enum": ["pending", "sent", "failed", "no_active_devices", "skipped"] },
+        "pushSentAt": { "type": "string" },
+        "pushErrorCode": { "type": "string", "maxLength": 256 }
       },
       "required": ["notificationId", "recipientUid", "type", "title", "message", "read", "createdAt"]
+    },
+    "Device": {
+      "title": "Device",
+      "description": "User registered browser/device for Web Push notifications via FCM",
+      "type": "object",
+      "properties": {
+        "deviceId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "fcmToken": { "type": "string", "maxLength": 1024 },
+        "platform": { "type": "string", "enum": ["WEB"] },
+        "browserName": { "type": "string", "maxLength": 64 },
+        "userAgent": { "type": "string", "maxLength": 512 },
+        "permissionStatus": { "type": "string", "enum": ["default", "granted", "denied"] },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "lastSeenAt": { "type": "string" },
+        "lastSuccessfulSendAt": { "type": "string" },
+        "lastErrorAt": { "type": "string" },
+        "tokenVersion": { "type": "string", "maxLength": 32 }
+      },
+      "required": ["deviceId", "userId", "fcmToken", "platform", "isActive", "createdAt"]
     },
     "ReminderSetting": {
       "title": "ReminderSetting",
@@ -209,6 +235,10 @@
     "/users/{uid}": {
       "schema": "User",
       "description": "User profile collection indexed by Firebase UID"
+    },
+    "/users/{uid}/devices/{deviceId}": {
+      "schema": "Device",
+      "description": "Registered browser device records for Web Push FCM delivery"
     },
     "/tasks/{taskId}": {
       "schema": "Task",

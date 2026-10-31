@@ -7,9 +7,6 @@ import {
   XCircle,
   Edit2,
   Power,
-  Briefcase,
-  Mail,
-  Building,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Card } from '../../components/ui/Card';

@@ -20,6 +20,7 @@ import notificationRoutes from './routes/notifications.js';
 import dashboardRoutes from './routes/dashboard.js';
 import reminderRoutes from './routes/reminders.js';
 import reportRoutes from './routes/reports.js';
+import pushRoutes from './routes/push.js';
 
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 
@@ -101,11 +102,31 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/push', pushRoutes);
+
+// ============================================================
+// STATIC ASSETS & CLIENT SPA SERVING
+// ============================================================
+
+import path from 'path';
+import fs from 'fs';
+
+const clientDistPath = path.resolve(process.cwd(), 'client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.resolve(clientDistPath, 'index.html'));
+  });
+}
 
 // ============================================================
 // ERROR HANDLING
 // ============================================================
 
+app.all('/api/*', notFound);
 app.use(notFound);
 app.use(errorHandler);
 

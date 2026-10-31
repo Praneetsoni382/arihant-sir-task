@@ -149,3 +149,24 @@ export const reminderApi = {
   evaluate: () => api.post<ApiResponse>('/reminders/evaluate'),
 };
 
+// Push Notifications (FCM)
+export const pushApi = {
+  getConfig: () => api.get<ApiResponse>('/push/config'),
+  register: (data: {
+    deviceId: string;
+    fcmToken: string;
+    browserName?: string;
+    userAgent?: string;
+    permissionStatus?: string;
+  }) => api.post<ApiResponse>('/push/register', data),
+  getDevices: () => api.get<ApiResponse>('/push/devices'),
+  updateDevice: (deviceId: string, data: Record<string, unknown>) =>
+    api.patch<ApiResponse>(`/push/devices/${deviceId}`, data),
+  unregisterDevice: (deviceId: string) =>
+    api.delete<ApiResponse>(`/push/devices/${deviceId}`),
+  getPreferences: () => api.get<ApiResponse>('/push/preferences'),
+  updatePreferences: (data: Record<string, unknown>) =>
+    api.patch<ApiResponse>('/push/preferences', data),
+  sendTestPush: () => api.post<ApiResponse>('/push/test'),
+};
+

@@ -4,10 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   PlusCircle,
   Search,
-  Filter,
   Users,
   User as UserIcon,
-  Calendar,
   AlertTriangle,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';

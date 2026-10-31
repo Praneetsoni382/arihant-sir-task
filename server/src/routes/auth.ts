@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { userRepo } from '../repositories/inMemoryStore.js';
+import { userRepo, deviceRepo } from '../repositories/inMemoryStore.js';
 import { requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
@@ -70,6 +70,20 @@ router.post(
 
 // POST /api/auth/logout
 router.post('/logout', (req, res) => {
+  const currentUserId = req.session?.userId;
+  const deviceId = req.body?.deviceId;
+
+  if (deviceId) {
+    if (currentUserId) {
+      deviceRepo.deactivateDevice(currentUserId, deviceId);
+    } else {
+      const dev = deviceRepo.findByDeviceId(deviceId);
+      if (dev) {
+        deviceRepo.deactivateDevice(dev.userId, deviceId);
+      }
+    }
+  }
+
   req.session.destroy((err) => {
     if (err) {
       res.status(500).json({ success: false, error: 'Logout failed' });

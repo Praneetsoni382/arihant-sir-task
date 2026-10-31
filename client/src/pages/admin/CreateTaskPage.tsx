@@ -6,9 +6,7 @@ import {
   Users,
   User as UserIcon,
   X,
-  Plus,
   Clock,
-  Calendar,
   AlertCircle,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';

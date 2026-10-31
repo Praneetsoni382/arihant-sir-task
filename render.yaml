@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: enterprise-task-platform
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: FIREBASE_PROJECT_ID
+        value: gen-lang-client-0565045974
+      - key: FIRESTORE_DATABASE_ID
+        value: ai-studio-arihantsirtask-0161e0d5-b616-4889-bd87-da1065b72003
+      - key: VITE_FIREBASE_PROJECT_ID
+        value: gen-lang-client-0565045974
+      - key: VITE_FIRESTORE_DATABASE_ID
+        value: ai-studio-arihantsirtask-0161e0d5-b616-4889-bd87-da1065b72003
+      - key: VITE_FIREBASE_API_KEY
+        value: AIzaSyBZqef1J1Whtrinp7B9GHu0HTZYTp0Qy_c
+      - key: VITE_FIREBASE_APP_ID
+        value: 1:1088662376372:web:5f0e30f453df09c317ece1
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        value: gen-lang-client-0565045974.firebaseapp.com

@@ -8,6 +8,7 @@ import {
   newId,
 } from '../repositories/inMemoryStore.js';
 import type { NotificationEventType, AuditEventType } from '../types/index.js';
+import { sendPushForNotification } from './pushNotificationService.js';
 
 interface NotifyOptions {
   recipientUserId: string;
@@ -20,8 +21,8 @@ interface NotifyOptions {
   navigationUrl?: string;
 }
 
-export function createNotification(opts: NotifyOptions) {
-  return notificationRepo.create({
+export async function createNotification(opts: NotifyOptions) {
+  const notif = await notificationRepo.create({
     recipientUserId: opts.recipientUserId,
     eventType: opts.eventType,
     title: opts.title,
@@ -33,7 +34,15 @@ export function createNotification(opts: NotifyOptions) {
     createdAt: new Date().toISOString(),
     deliveryState: 'delivered',
     navigationUrl: opts.navigationUrl ?? null,
+    pushStatus: 'pending',
   });
+
+  // Asynchronously dispatch FCM browser push notification to recipient's registered devices
+  sendPushForNotification(notif).catch((err) => {
+    console.warn(`[Push Delivery Notice] Could not deliver push to user ${opts.recipientUserId}:`, err);
+  });
+
+  return notif;
 }
 
 interface AuditOptions {
@@ -46,8 +55,8 @@ interface AuditOptions {
   message: string;
 }
 
-export function createAuditEvent(opts: AuditOptions) {
-  return auditRepo.create({
+export async function createAuditEvent(opts: AuditOptions) {
+  return await auditRepo.create({
     actorUserId: opts.actorUserId,
     entityType: opts.entityType,
     entityId: opts.entityId,

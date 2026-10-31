@@ -1,0 +1,1174 @@
+# MASTER PROMPT — FIREBASE CLOUD MESSAGING (FCM) WEB PUSH NOTIFICATION INTEGRATION
+
+## Organizational Task Management & Status Tracking Application
+
+### 1. Your role
+
+Act as a Senior Firebase Cloud Messaging Engineer, Full-Stack Developer, Backend Architect, and Application Security Specialist.
+
+You are working on my existing organizational task management application, developed using:
+
+- React
+- Vite
+- TypeScript
+- Node.js
+- Express.js
+- TypeScript
+- Firebase Authentication
+- Cloud Firestore
+- Firebase Admin SDK
+
+The application has two primary roles:
+
+1. ADMIN / MANAGER
+2. EMPLOYEE
+
+Firebase Authentication and Firestore are the application's identity and persistent data infrastructure.
+
+Your task is to integrate fully functional browser-based Firebase Cloud Messaging (FCM) so that the correct users receive browser push notifications when relevant application events occur.
+
+This is NOT a request to rebuild the application.
+
+Inspect the existing project, preserve its architecture and UI, fix any existing integration defects encountered, and implement FCM end-to-end.
+
+---
+
+# 2. Main objective
+
+Implement browser-based push notifications that can:
+
+- Appear in the browser notification panel.
+- Reach users when the application is in the background.
+- Reach users when the application tab is closed, subject to browser and operating-system support.
+- Display notifications on the user's device even when they are not actively using the application.
+- Open the relevant application page when clicked.
+- Target a particular employee or administrator rather than broadcasting every event to everybody.
+
+FCM must work alongside the existing persistent in-app notification system.
+
+IMPORTANT:
+
+Firestore in-app notifications and browser push notifications are two different delivery mechanisms.
+
+Firestore remains the authoritative notification history.
+
+FCM is the external browser/device delivery mechanism.
+
+A notification event should first be recorded persistently and then delivered through FCM to the appropriate registered devices.
+
+Do not replace the existing notification system with FCM.
+
+---
+
+# 3. Firebase Spark plan requirement
+
+The Firebase project is currently on the free Spark plan.
+
+Implement using Firebase Cloud Messaging without requiring a billing-plan upgrade solely for FCM.
+
+Do not introduce paid services unnecessarily.
+
+Do not use paid Cloud Functions or assume that a scheduled Cloud Function is available on Spark.
+
+The existing Node.js/Express backend must send FCM messages using Firebase Admin SDK.
+
+Do not introduce another notification provider.
+
+Do not require a separate paid messaging service.
+
+Keep the implementation compatible with the existing hosting and deployment architecture.
+
+---
+
+# 4. Architecture
+
+Implement this architecture:
+
+Application event occurs
+        |
+        v
+Express backend business logic
+        |
+        v
+Validate event and determine recipients
+        |
+        v
+Create persistent Firestore notification
+        |
+        v
+Retrieve recipient's active device tokens
+        |
+        v
+Firebase Admin SDK sends FCM message
+        |
+        v
+Firebase Cloud Messaging
+        |
+        v
+Employee's / Administrator's browser
+        |
+        v
+Browser notification panel
+
+The frontend must never send FCM messages directly.
+
+The frontend must never contain Firebase Admin SDK credentials.
+
+The backend must control:
+
+- Notification recipient selection.
+- Event validation.
+- Token lookup.
+- Message construction.
+- FCM sending.
+- Invalid token cleanup.
+- Delivery error handling.
+- Duplicate prevention.
+
+Never allow an employee to choose an arbitrary recipient UID and send them a notification.
+
+---
+
+# 5. Browser permission workflow
+
+This requirement is extremely important.
+
+I want notification permission to be requested when a user logs into the application for the first time on a browser/device.
+
+Implement the following workflow for BOTH administrators and employees.
+
+## First login
+
+1. User successfully logs in using Firebase Authentication.
+2. Application checks browser notification permission.
+3. Application checks whether this browser/device has already been registered for the authenticated account.
+4. If permission is not yet granted, display a professional in-app notification introduction.
+5. Explain that notifications help users receive task assignments, status requests, deadline reminders, query responses, and other important updates.
+6. Display an Enable Notifications button.
+7. Only when the user clicks that button should the application invoke the browser notification permission request.
+8. If permission is granted, register the service worker, obtain the FCM registration token using the supported Firebase Web SDK API, and register it with the authenticated backend.
+9. Show a success state.
+10. If permission is denied, explain how the user can enable it later through browser settings.
+
+Do not repeatedly show permission prompts after the user has already made a decision.
+
+Do not automatically request browser permission on every login.
+
+Do not request browser permission before the user understands why it is needed.
+
+Browser notification permission is associated with the browser origin, not an individual Firebase account. However, device tokens must be associated with the currently authenticated application user.
+
+## Existing permission states
+
+Handle all possible states:
+
+- default
+- granted
+- denied
+
+If permission is granted but no token is registered, attempt registration through an explicit or appropriate application-controlled registration flow.
+
+If permission is denied, do not repeatedly trigger the browser permission dialog.
+
+Provide an Enable Notifications or Notification Settings option where appropriate.
+
+If the browser does not support the required Push API or Firebase Messaging APIs, display a clear compatibility message.
+
+Never break normal application usage because notifications are unsupported or denied.
+
+---
+
+# 6. Firebase Web Messaging setup
+
+Inspect the existing Firebase initialization before adding new configuration.
+
+Do not initialize Firebase multiple times unnecessarily.
+
+Use the existing Firebase app instance.
+
+Install or update the Firebase JavaScript SDK only as required.
+
+Configure:
+
+- Firebase Messaging.
+- VAPID public key.
+- Browser notification permission.
+- Service worker registration.
+- FCM token generation and refresh handling.
+- Foreground message handling.
+- Background message handling.
+- Notification click handling.
+
+Create the required service worker:
+
+public/firebase-messaging-sw.js
+
+If the existing application already uses a service worker, inspect it before introducing another one.
+
+Do not register competing service workers for the same application scope.
+
+Ensure that the service worker is served from the correct root scope.
+
+For Vite production builds, verify that the file is actually copied to the deployed application's public root.
+
+Use a Firebase SDK approach compatible with the installed project version and service worker bundling setup.
+
+Do not mix incompatible Firebase SDK versions or deprecated messaging APIs.
+
+Use the currently supported registration/token API appropriate to the installed SDK and verify that the resulting registration token is accepted by the backend Firebase Admin Messaging API.
+
+The public VAPID key may be included in frontend configuration.
+
+The private VAPID key, if applicable to server-side configuration, and all Firebase service account credentials must never be exposed to the browser.
+
+---
+
+# 7. Device token management — critical requirement
+
+An employee may use:
+
+- A laptop.
+- A desktop.
+- A personal browser.
+- Another browser.
+- Multiple devices.
+
+Therefore, do NOT store only one token per employee.
+
+Create the following Firestore structure:
+
+users/{uid}/devices/{deviceId}
+
+Fields:
+
+- deviceId
+- fcmToken
+- platform: WEB
+- browserName, if reliably available
+- userAgent, if necessary and privacy-appropriate
+- permissionStatus
+- isActive
+- createdAt
+- updatedAt
+- lastSeenAt
+- lastSuccessfulSendAt
+- lastErrorAt
+- tokenVersion
+
+Use server timestamps where possible.
+
+Each authenticated account may have multiple active device records.
+
+The same employee must receive notifications on all their active, registered devices.
+
+The administrator must also be able to register multiple devices.
+
+## Token registration endpoint
+
+POST /api/push/register
+
+Request must contain the device registration information.
+
+The backend must:
+
+1. Verify Firebase Authentication ID token.
+2. Identify the actual UID from the verified token.
+3. Retrieve the authoritative user profile.
+4. Check account status.
+5. Validate the registration token.
+6. Associate the token with the authenticated UID only.
+7. Create or update the device record.
+8. Handle duplicate registrations safely.
+9. Record timestamps.
+10. Return a safe response.
+
+Never accept an arbitrary owner UID from the frontend.
+
+The authenticated UID determines ownership.
+
+## Token refresh
+
+Implement token refresh handling.
+
+When the FCM registration token changes:
+
+- Update the existing device record.
+- Avoid leaving unnecessary stale tokens.
+- Ensure future notifications use the latest valid registration token.
+
+Do not create unlimited duplicate device records when the same device registers repeatedly.
+
+## Logout and account switching
+
+When a user logs out:
+
+- Remove or deactivate the current account's association with that browser/device token through a protected backend endpoint.
+- Do not delete the Firebase Authentication account.
+- Do not delete the user's Firestore notification history.
+- Prevent notifications belonging to the previous account from appearing after another user logs into the same browser.
+
+When a different account logs in on the same browser, register or associate the current browser token with the newly authenticated UID only after the user has authorized notifications.
+
+Handle this carefully because browser notification permission is origin-wide, whereas application account ownership is user-specific.
+
+---
+
+# 8. Notification recipient architecture
+
+This is the most important business-logic requirement.
+
+Every notification must be delivered to the correct recipient based on the event and its associated task relationships.
+
+Never broadcast every notification to all employees.
+
+Never assume that everyone in a department should receive every task notification.
+
+Never send a private employee notification to another employee.
+
+The backend must determine recipients using authoritative Firestore records.
+
+Use:
+
+- Firebase UID.
+- User role.
+- Task ID.
+- Task membership.
+- Assigned employee IDs.
+- Relevant administrator identity.
+- Event type.
+
+The recipient list must be calculated on the server.
+
+## Recipient rules
+
+### A. Task assigned to one employee
+
+When an administrator assigns a solo task:
+
+- Notify the assigned employee.
+- Notify only their active registered devices.
+- Do not notify unrelated employees.
+- Do not notify all employees in the department.
+
+### B. Task assigned to a group
+
+When an administrator creates a group task:
+
+- Notify every assigned employee separately.
+- Retrieve each employee's registered device tokens.
+- Send to each employee's active devices.
+- Do not expose another employee's device token or private information.
+- Maintain one shared task document with independent member records.
+
+### C. Employee status update
+
+When an employee changes their task status:
+
+- Notify the responsible administrator or configured manager.
+- If the task has an explicit assigned manager, notify that manager.
+- Do not notify every employee assigned to the group unless the existing product behavior explicitly requires it.
+
+### D. Employee reports a blocker
+
+Notify the responsible administrator or manager.
+
+Include the relevant task title and a safe description.
+
+### E. Status request
+
+When an administrator sends a status request:
+
+- Notify the specific employee or selected employees.
+- Each employee receives an independent notification.
+- Do not combine multiple employees into one recipient record.
+
+### F. Status response
+
+When an employee responds to a status request:
+
+- Notify the administrator who initiated the request or the responsible manager.
+
+### G. Employee query
+
+When an employee raises a query:
+
+- Notify the responsible administrator or manager.
+
+### H. Administrator answers a query
+
+Notify only the employee who raised that query.
+
+### I. Task submission
+
+When an employee submits a task:
+
+- Notify the administrator responsible for reviewing that submission.
+
+For group tasks, each employee submission must generate its own appropriate event.
+
+### J. Approval
+
+When an administrator approves an employee's submission:
+
+- Notify that particular employee.
+
+Do not notify unrelated group members unless the event is explicitly intended as a group-level update.
+
+### K. Revision request
+
+When an administrator requests a revision:
+
+- Notify only the employee whose submission needs revision.
+
+### L. Deadline changed
+
+Notify all employees currently assigned to the affected task.
+
+### M. Employee reassignment
+
+Notify the newly assigned employee.
+
+Notify removed employees when appropriate.
+
+### N. Task cancellation
+
+Notify all currently affected assigned employees.
+
+### O. Group communication
+
+When a group member sends a message:
+
+- Notify other relevant group members.
+- Notify the responsible administrator if the existing notification policy requires it.
+- Do not notify the sender about their own message.
+- Do not send messages to unrelated employees.
+
+### P. Reminder events
+
+Send reminder notifications only to the employee whose individual task assignment is eligible.
+
+Do not send one group-wide reminder to every member without checking individual submission state.
+
+### Q. Employee account deactivation
+
+Immediately stop sending notifications to that employee's inactive account.
+
+Do not delete historical notifications.
+
+---
+
+# 9. Persistent notification data
+
+Preserve the existing Firestore in-app notification architecture.
+
+Use:
+
+notifications/{notificationId}
+
+Fields:
+
+- notificationId
+- recipientUid
+- type
+- title
+- message
+- relatedTaskId
+- relatedEntityId
+- createdAt
+- read
+- readAt
+- navigationTarget
+- pushStatus
+- pushSentAt
+- pushErrorCode
+
+The in-app notification must be saved even if FCM delivery fails.
+
+A push failure must never erase a notification from Firestore.
+
+The application must distinguish:
+
+- Notification created.
+- Push delivery attempted.
+- FCM accepted the message.
+- Push delivery failed.
+
+Do not describe an FCM API success response as proof that the user's device displayed the notification.
+
+Keep push delivery metadata separate from the employee's read state.
+
+---
+
+# 10. Notification event catalogue
+
+Implement a centralized notification event system.
+
+Use consistent event identifiers.
+
+Examples:
+
+TASK_ASSIGNED
+TASK_UPDATED
+TASK_DEADLINE_CHANGED
+TASK_REASSIGNED
+TASK_CANCELLED
+TASK_STATUS_UPDATED
+TASK_BLOCKED
+TASK_BLOCKER_RESOLVED
+STATUS_REQUEST_RECEIVED
+STATUS_RESPONSE_RECEIVED
+QUERY_CREATED
+QUERY_ANSWERED
+QUERY_RESOLVED
+TASK_SUBMITTED
+TASK_APPROVED
+TASK_REVISION_REQUESTED
+GROUP_MEMBER_SUBMITTED
+GROUP_READY_FOR_REVIEW
+GROUP_MESSAGE_RECEIVED
+TASK_REMINDER
+TASK_OVERDUE
+EMPLOYEE_DEACTIVATED
+
+Each event must have:
+
+- Event identifier.
+- Recipient resolver.
+- Notification title.
+- Notification body.
+- Related entity.
+- Navigation destination.
+- Priority or urgency.
+- Push eligibility.
+- In-app notification eligibility.
+
+Create a central notification service instead of placing FCM send logic inside every frontend component or Express route.
+
+Business services should emit events after successful operations.
+
+The notification service should:
+
+1. Validate the event.
+2. Resolve recipients.
+3. Create persistent in-app notification records.
+4. Retrieve active device tokens.
+5. Send the appropriate FCM payload.
+6. Handle invalid tokens.
+7. Record delivery attempt results.
+
+Use a consistent event-to-recipient mapping.
+
+Do not duplicate notification logic across multiple controllers.
+
+---
+
+# 11. Reminder notification lifecycle
+
+Remember the original application requirement:
+
+Managers configure reminder times, such as 12 PM and 3 PM, using Asia/Kolkata timezone.
+
+Each employee must be evaluated independently.
+
+A group task has independent reminder eligibility for every member.
+
+Do not send reminders to employees who have been removed from the task or whose accounts are deactivated.
+
+Do not send ordinary work-pending reminders to employees whose work is already submitted.
+
+However, remember that the original product requirement expects reminders to stop completely only after the task has been submitted AND verified by the administrator.
+
+Therefore, distinguish these two phases:
+
+1. Work pending: employee has not submitted.
+2. Awaiting verification: employee has submitted but administrator has not yet approved.
+
+When the employee submits, stop the ordinary work-pending reminder template.
+
+If the configured reminder policy requires continued reminders until manager verification, use a separate, appropriately worded awaiting-verification notification.
+
+After administrator approval, stop all recurring reminders for that employee's assignment immediately.
+
+If revision is requested, reactivate the appropriate work-pending reminder eligibility.
+
+Do not send reminders for cancelled tasks.
+
+Use persistent reminder occurrence records and deduplication keys.
+
+Do not invent a new scheduler if one already exists.
+
+Inspect the current reminder architecture and connect FCM to its existing evaluation process.
+
+If the existing application only supports manual reminder evaluation, preserve that behavior and clearly document that automatic scheduled delivery requires an available server-side scheduler.
+
+Do not assume the Spark plan provides scheduled Cloud Functions.
+
+---
+
+# 12. Foreground and background notification behavior
+
+Implement both.
+
+## Foreground
+
+When the user is actively using the application:
+
+- Receive FCM messages using the Firebase Messaging foreground handler.
+- Update the in-app notification interface.
+- Display a non-intrusive toast or notification indicator.
+- Avoid displaying duplicate browser notifications if the application already displays an appropriate foreground notification.
+- Refresh relevant data or invalidate the appropriate TanStack Query cache.
+
+## Background
+
+When the application is minimized, in another tab, or not currently focused:
+
+- Receive the push message through the Firebase Messaging service worker.
+- Display a browser notification.
+- Include a meaningful title and body.
+- Include an application icon.
+- Include an appropriate notification tag to reduce duplicate visible notifications where appropriate.
+- Attach the relevant navigation destination.
+
+## Closed tab
+
+When the application tab is closed:
+
+- Background delivery should work through the registered service worker, subject to browser and operating-system support and permission settings.
+
+Do not claim guaranteed delivery when the browser or operating system blocks background activity.
+
+---
+
+# 13. Service worker implementation
+
+Implement the Firebase Messaging service worker correctly.
+
+Requirements:
+
+- Register it at the correct origin scope.
+- Initialize Firebase using the required public web configuration.
+- Handle background messages.
+- Display notifications safely.
+- Handle notification clicks.
+- Open the appropriate application route.
+- Focus an existing application tab where possible.
+- Open a new tab when necessary.
+- Avoid opening arbitrary external URLs from untrusted payload data.
+
+Handle the notification click event before importing messaging functionality if required by the chosen service-worker implementation.
+
+Ensure the service worker is compatible with the Vite build process.
+
+Test the deployed service worker URL directly.
+
+Do not rely only on local development success.
+
+---
+
+# 14. Notification click navigation
+
+Every notification should navigate to the relevant application page.
+
+Examples:
+
+- Task assigned → task details page.
+- Status request → status request details.
+- Query answered → employee's query details.
+- Revision requested → task submission/revision page.
+- Submission received → admin review page.
+- Group message → corresponding task conversation.
+- Deadline changed → relevant task details.
+
+Use internal route identifiers or validated relative application paths.
+
+Do not trust arbitrary URLs contained in incoming notification payloads.
+
+After a notification click:
+
+1. Open or focus the application.
+2. Restore the authenticated session.
+3. Verify the current user's access.
+4. Navigate to the relevant page.
+5. Load the latest Firestore-backed data.
+
+If the user is logged out, require authentication before displaying protected task details.
+
+---
+
+# 15. Backend FCM endpoints
+
+Inspect the existing Express routes and extend them without creating unnecessary duplicates.
+
+Suggested endpoints:
+
+### Device registration
+
+POST /api/push/register
+
+Register the current authenticated browser/device token.
+
+### Device update
+
+PATCH /api/push/devices/:deviceId
+
+Update device registration metadata.
+
+### Device removal
+
+DELETE /api/push/devices/:deviceId
+
+Deactivate or remove the authenticated user's device association.
+
+### Notification preferences
+
+GET /api/push/preferences
+
+PATCH /api/push/preferences
+
+### Push test
+
+POST /api/push/test
+
+Send a test push to the currently authenticated user's own registered device(s).
+
+Only allow this operation for a verified user and apply reasonable rate limiting.
+
+### Notification history
+
+Keep the existing:
+
+GET /api/notifications
+
+PATCH /api/notifications/:notificationId/read
+
+Do not expose an endpoint that allows an employee to send arbitrary messages to another employee.
+
+All endpoints must:
+
+- Verify Firebase ID tokens.
+- Identify the authenticated UID.
+- Check account status.
+- Validate request bodies.
+- Enforce ownership.
+- Return structured responses.
+- Handle errors safely.
+
+---
+
+# 16. Firebase Admin SDK sending service
+
+Implement FCM sending through the existing Firebase Admin SDK.
+
+Use a dedicated backend service, for example:
+
+server/src/services/pushNotificationService.ts
+
+Responsibilities:
+
+- Retrieve active device registrations.
+- Construct notification payloads.
+- Send messages through Firebase Admin Messaging.
+- Support multiple devices per recipient.
+- Handle multicast/batched sending where appropriate.
+- Handle partial failures.
+- Remove or deactivate invalid registration tokens.
+- Log safe delivery metadata.
+- Avoid logging full FCM tokens.
+
+Never expose server credentials.
+
+Never send FCM directly from React.
+
+Never trust a recipient UID supplied by the browser.
+
+Do not use public FCM server keys or legacy insecure send APIs.
+
+---
+
+# 17. Multi-device and multi-user isolation
+
+This is a mandatory security requirement.
+
+Example:
+
+Employee A is logged in on:
+- Laptop A.
+- Desktop A.
+
+Employee B is logged in on:
+- Laptop B.
+
+Administrator is logged in on:
+- Admin desktop.
+
+When a task is assigned to Employee A:
+
+- Laptop A receives the notification.
+- Desktop A receives the notification.
+- Employee B receives nothing.
+- Administrator receives only the relevant administrative confirmation, if configured.
+
+When Employee B receives a query response:
+
+- Employee B's registered devices receive it.
+- Employee A receives nothing.
+- Unrelated users receive nothing.
+
+When the administrator receives a submission notification:
+
+- Only the relevant administrator/manager devices receive it.
+
+For group tasks, resolve recipients from the actual taskMembers documents.
+
+Do not use broad FCM topics for private employee-specific notifications.
+
+Do not place private employee information in topic messages.
+
+---
+
+# 18. Duplicate prevention and delivery reliability
+
+Avoid duplicate push notifications.
+
+Use deterministic event IDs or idempotency keys.
+
+One business event should create one logical notification per intended recipient.
+
+A user with multiple registered devices may receive the same event on each active device, but the application should not create multiple in-app notification records merely because the user has multiple devices.
+
+Handle:
+
+- Duplicate API requests.
+- Retried operations.
+- Multiple backend processes.
+- Token refresh.
+- Invalid tokens.
+- Partial multicast failures.
+- FCM unavailable.
+- Network errors.
+- Expired or invalid registration tokens.
+
+Persist the in-app notification before attempting push delivery.
+
+Use a reliable retry strategy only where appropriate.
+
+Do not create uncontrolled retry loops.
+
+Do not let a failed push prevent the original task operation from succeeding.
+
+Do not claim guaranteed delivery merely because Firebase accepted a send request.
+
+---
+
+# 19. User notification preferences
+
+Add notification preference controls to the existing application settings or profile interface if appropriate.
+
+Allow users to:
+
+- See whether browser notifications are enabled.
+- See whether this device is registered.
+- Enable notifications where browser permission allows.
+- Disable push notifications for this account/device.
+- Re-enable push notifications.
+- Manage available notification categories if the existing UI supports them.
+
+Do not confuse:
+
+- Browser permission.
+- Device token registration.
+- Application-level notification preferences.
+- In-app notification read/unread status.
+
+They are separate states.
+
+If browser permission is denied, do not claim that the application can override it.
+
+If the user disables push notifications, keep their in-app notifications working.
+
+---
+
+# 20. Security requirements
+
+Enforce the following:
+
+1. Firebase Admin SDK only on the backend.
+2. Firebase ID token verification for all protected endpoints.
+3. Server-side recipient resolution.
+4. Device token ownership validation.
+5. No arbitrary recipient targeting.
+6. No public token registration.
+7. No employee access to other users' device records.
+8. No exposure of FCM tokens in frontend APIs unnecessarily.
+9. No service account credentials in frontend code.
+10. No private keys in Git.
+11. No arbitrary notification click URLs.
+12. Rate limiting for test notification endpoints.
+13. Safe error handling.
+14. Account deactivation must stop future notification delivery.
+15. Logout must detach the current device association from the previous account.
+16. Invalid token cleanup.
+17. Notification content must not expose unnecessary confidential business information.
+
+Use minimum necessary data in browser notification payloads.
+
+For sensitive tasks, display a generic notification body and require authentication to view details.
+
+---
+
+# 21. Testing requirements
+
+Do not stop after writing FCM code.
+
+Test the complete system.
+
+## Test 1 — First login permission
+
+- Log in as Employee A for the first time.
+- Confirm the notification introduction appears.
+- Click Enable Notifications.
+- Confirm browser permission is requested.
+- Grant permission.
+- Confirm device registration is saved in Firestore.
+
+## Test 2 — Permission denied
+
+- Test a browser where permission is denied.
+- Confirm no repeated permission popup.
+- Confirm the application still works.
+- Confirm in-app notifications continue working.
+
+## Test 3 — Employee-specific assignment
+
+- Create Employee A and Employee B.
+- Register both devices.
+- Create a task for Employee A only.
+- Confirm Employee A receives a browser notification.
+- Confirm Employee B receives nothing.
+
+## Test 4 — Group assignment
+
+- Create one group task.
+- Assign it to Employee A and Employee B.
+- Confirm both receive their own notification.
+- Confirm an unrelated Employee C receives nothing.
+
+## Test 5 — Independent status updates
+
+- Employee A updates status.
+- Confirm the correct administrator is notified.
+- Confirm Employee B does not receive an unrelated private notification.
+
+## Test 6 — Query response
+
+- Employee A creates a query.
+- Administrator answers it.
+- Confirm only Employee A receives the query response notification.
+
+## Test 7 — Submission and revision
+
+- Employee A submits a task.
+- Administrator receives the submission notification.
+- Administrator requests revision.
+- Employee A receives the revision notification.
+- Confirm the correct task opens when clicked.
+
+## Test 8 — Multi-device delivery
+
+- Log in as Employee A on two separate devices or browsers.
+- Register both.
+- Create an assignment for Employee A.
+- Confirm both registered devices receive it.
+
+## Test 9 — Background notification
+
+- Keep the application open.
+- Move it to the background.
+- Trigger a notification event.
+- Confirm the browser displays the notification.
+
+## Test 10 — Closed tab
+
+- Register the service worker.
+- Grant permission.
+- Close the application tab.
+- Trigger a notification event from the backend.
+- Confirm background notification delivery where supported.
+
+## Test 11 — Logout and account switching
+
+- Register Employee A's browser.
+- Log out.
+- Log in as Employee B on the same browser.
+- Confirm Employee A's private notifications do not appear for Employee B.
+- Confirm new notifications are associated with the currently authenticated account only.
+
+## Test 12 — Invalid token
+
+- Simulate an invalid registration token.
+- Confirm the backend handles the failure.
+- Confirm the invalid token is deactivated or removed.
+- Confirm the business operation still succeeds.
+
+## Test 13 — Administrator notifications
+
+- Register an administrator device.
+- Trigger a relevant employee submission or query.
+- Confirm the administrator receives the correct event.
+
+## Test 14 — Persistence
+
+- Refresh the application.
+- Log out and log back in.
+- Confirm device registration and in-app notification history remain consistent.
+
+Test both local development and the actual deployed HTTPS application.
+
+---
+
+# 22. Firebase configuration documentation
+
+Create or update FCM_SETUP.md.
+
+Explain exactly:
+
+1. Open the correct Firebase project.
+2. Navigate to Project Settings.
+3. Open Cloud Messaging.
+4. Find Web Push certificates.
+5. Generate the VAPID key pair.
+6. Copy the public VAPID key into the frontend environment configuration.
+7. Verify the FCM Registration API is enabled in the correct Google Cloud project if required.
+8. Verify Firebase Admin SDK is initialized on the backend.
+9. Configure all required environment variables.
+10. Verify HTTPS hosting.
+11. Verify service worker registration.
+12. Grant browser notification permission.
+13. Register the first device.
+14. Send a test notification.
+15. Verify delivery and notification click navigation.
+
+Use environment variables such as:
+
+VITE_FIREBASE_VAPID_KEY=
+
+Do not hardcode real credentials.
+
+Do not place service account private keys in frontend environment variables.
+
+---
+
+# 23. Deployment and hosting requirements
+
+The existing application is deployed using its current hosting architecture.
+
+Inspect the deployment configuration.
+
+Verify:
+
+- The frontend is served over HTTPS.
+- The service worker is accessible from the origin root.
+- The service worker has the correct scope.
+- The backend has Firebase Admin SDK credentials.
+- The backend can reach Firebase Cloud Messaging.
+- CORS and authentication continue working.
+- The correct application base URL is used in notification click links.
+- No localhost URLs remain in production notification payloads.
+
+Do not assume FCM works in production merely because it works in localhost.
+
+If the current hosting provider does not support a required service-worker or HTTPS configuration, identify the exact limitation and recommend a compatible configuration without silently changing the hosting platform.
+
+---
+
+# 24. Final implementation rules
+
+Preserve the existing application.
+
+Do not rebuild the UI.
+
+Do not remove the existing Firestore in-app notification system.
+
+Do not change the task workflow unnecessarily.
+
+Do not replace the existing Express backend with Cloud Functions.
+
+Do not introduce paid Firebase services unnecessarily.
+
+Do not use FCM topics for private user-specific notifications.
+
+Do not request browser permission repeatedly.
+
+Do not send notifications to every employee.
+
+Do not send notifications using frontend-supplied recipient IDs.
+
+Do not expose service account credentials or device tokens.
+
+Do not claim successful delivery without testing.
+
+Fix existing bugs discovered during implementation when they affect authentication, task events, notification routing, or synchronization.
+
+Implement FCM incrementally and test each stage.
+
+---
+
+# 25. Final definition of done
+
+FCM integration is complete only when:
+
+- Browser notification permission workflow works.
+- VAPID configuration works.
+- Service worker is registered correctly.
+- FCM device registration works.
+- Multiple devices per account are supported.
+- Device registration is associated with the authenticated UID.
+- Token refresh is handled.
+- Logout/account switching is safe.
+- Admin notifications work.
+- Employee notifications work.
+- Solo task notifications work.
+- Group task notifications work.
+- Status request notifications work.
+- Status response notifications work.
+- Query notifications work.
+- Submission notifications work.
+- Approval notifications work.
+- Revision notifications work.
+- Group communication notifications work.
+- Reminder notifications use individual eligibility.
+- Foreground message handling works.
+- Background message handling works.
+- Notification click navigation works.
+- Invalid tokens are handled.
+- Duplicate notifications are prevented.
+- In-app notifications remain persistent.
+- Unrelated employees never receive private notifications.
+- The application continues working when permission is denied.
+- Production HTTPS behavior is tested.
+
+At the end, provide:
+
+1. FCM architecture implemented.
+2. Service worker files created or modified.
+3. Backend routes created or modified.
+4. Firestore device registration structure.
+5. Event-to-recipient mapping.
+6. Notification templates.
+7. Security protections.
+8. Tests actually performed.
+9. Remaining limitations.
+10. Exact Firebase Console settings I must configure manually.
+
+FINAL INSTRUCTION:
+
+Implement a complete, secure, event-driven, user-specific browser push notification system using Firebase Cloud Messaging.
+
+Every employee must receive notifications only for events relevant to their own assigned tasks and account.
+
+Administrators must receive the appropriate administrative notifications.
+
+The system must support multiple devices per user, persistent notification history, safe account switching, and background browser delivery.
+
+Do not stop at generating code or explaining the architecture. Integrate it into the existing application and verify the complete workflow.

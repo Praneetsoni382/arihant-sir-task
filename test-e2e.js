@@ -284,8 +284,11 @@ async function runScenario() {
     console.log('\n====================================================');
     console.log('🎉 ALL 25 MANDATORY END-TO-END STEPS PASSED 100%!');
     console.log('====================================================\n');
+    await seedStore(true);
+    process.exit(0);
   } catch (err) {
     console.error('❌ E2E SCENARIO FAILED:', err);
+    await seedStore(true);
     process.exit(1);
   } finally {
     if (server) {

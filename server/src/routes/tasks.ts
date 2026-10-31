@@ -189,7 +189,7 @@ router.post(
     const uniqueUserIds = [...new Set(data.assignedUserIds)];
 
     // Create task
-    const task = taskRepo.create({
+    const task = await taskRepo.create({
       referenceNumber: nextTaskRef(),
       title: data.title,
       description: data.description,
@@ -212,7 +212,7 @@ router.post(
 
     // Create task members + notifications
     for (const userId of uniqueUserIds) {
-      taskMemberRepo.create({
+      await taskMemberRepo.create({
         taskId: task.id,
         userId,
         memberStatus: 'pending',
@@ -226,7 +226,7 @@ router.post(
       });
 
       const tmpl = notifTemplates.taskAssigned(task.title, formatDeadline(task.deadline));
-      createNotification({
+      await createNotification({
         recipientUserId: userId,
         eventType: 'TASK_ASSIGNED',
         title: tmpl.title,
@@ -237,7 +237,7 @@ router.post(
     }
 
     const memberNames = employees.map((e) => e.fullName).join(', ');
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'task',
       entityId: task.id,
@@ -315,13 +315,13 @@ router.patch(
 
     const deadlineChanged = parse.data.deadline && parse.data.deadline !== task.deadline;
 
-    const updated = taskRepo.update(task.id, parse.data);
+    const updated = await taskRepo.update(task.id, parse.data);
     if (!updated) {
       res.status(500).json({ success: false, error: 'Update failed' });
       return;
     }
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'task',
       entityId: task.id,
@@ -337,7 +337,7 @@ router.patch(
           updated.title,
           formatDeadline(updated.deadline)
         );
-        createNotification({
+        await createNotification({
           recipientUserId: m.userId,
           eventType: 'DEADLINE_CHANGED',
           title: tmpl.title,
@@ -369,7 +369,7 @@ router.post(
       return;
     }
 
-    const updated = taskRepo.update(task.id, {
+    const updated = await taskRepo.update(task.id, {
       status: 'cancelled',
       cancelledAt: new Date().toISOString(),
     });
@@ -377,9 +377,9 @@ router.post(
     // Disable reminders for all members
     const members = taskMemberRepo.findByTask(task.id);
     for (const m of members) {
-      taskMemberRepo.update(m.id, { reminderEligible: false });
+      await taskMemberRepo.update(m.id, { reminderEligible: false });
       const tmpl = notifTemplates.taskCancelled(task.title);
-      createNotification({
+      await createNotification({
         recipientUserId: m.userId,
         eventType: 'TASK_CANCELLED',
         title: tmpl.title,
@@ -388,7 +388,7 @@ router.post(
       });
     }
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'task',
       entityId: task.id,
@@ -513,7 +513,7 @@ router.patch(
       return;
     }
 
-    const updatedMember = taskMemberRepo.update(member.id, {
+    const updatedMember = await taskMemberRepo.update(member.id, {
       memberStatus: newStatus,
       lastStatusUpdateAt: new Date().toISOString(),
     });
@@ -523,7 +523,7 @@ router.patch(
     // Handle blocker notifications
     if (newStatus === 'blocked') {
       const tmpl = notifTemplates.blockerReported(actor.fullName, task.title);
-      createNotification({
+      await createNotification({
         recipientUserId: task.createdBy,
         eventType: 'BLOCKER_REPORTED',
         title: tmpl.title,
@@ -533,7 +533,7 @@ router.patch(
     }
     if (oldStatus === 'blocked' && newStatus === 'in_progress') {
       const tmpl = notifTemplates.blockerResolved(actor.fullName, task.title);
-      createNotification({
+      await createNotification({
         recipientUserId: task.createdBy,
         eventType: 'BLOCKER_RESOLVED',
         title: tmpl.title,
@@ -542,7 +542,7 @@ router.patch(
       });
     }
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'task',
       entityId: task.id,
@@ -553,7 +553,7 @@ router.patch(
     });
 
     // Recalculate overall task status
-    updateOverallTaskStatus(task.id, req.session.userId!);
+    await updateOverallTaskStatus(task.id, req.session.userId!);
 
     res.json({ success: true, data: updatedMember });
   })
@@ -597,7 +597,7 @@ router.post(
     }
 
     const now = new Date().toISOString();
-    const updatedMember = taskMemberRepo.update(member.id, {
+    const updatedMember = await taskMemberRepo.update(member.id, {
       memberStatus: 'submitted_for_review',
       submissionNote: parse.data.submissionNote,
       submittedAt: now,
@@ -609,7 +609,7 @@ router.post(
 
     // Notify admin
     const tmpl = notifTemplates.taskSubmitted(actor.fullName, task.title);
-    createNotification({
+    await createNotification({
       recipientUserId: task.createdBy,
       eventType: 'TASK_SUBMITTED',
       title: tmpl.title,
@@ -617,7 +617,7 @@ router.post(
       relatedTaskId: task.id,
     });
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'task',
       entityId: task.id,
@@ -639,7 +639,7 @@ router.post(
         for (const m of allMembers) {
           if (m.userId !== req.session.userId) {
             const grpTmpl = notifTemplates.groupMemberSubmitted(actor.fullName, task.title);
-            createNotification({
+            await createNotification({
               recipientUserId: m.userId,
               eventType: 'GROUP_MEMBER_SUBMITTED',
               title: grpTmpl.title,
@@ -651,7 +651,7 @@ router.post(
 
         // Notify admin about full group submission
         const readyTmpl = notifTemplates.groupReadyForReview(task.title);
-        createNotification({
+        await createNotification({
           recipientUserId: task.createdBy,
           eventType: 'GROUP_READY_FOR_REVIEW',
           title: readyTmpl.title,
@@ -661,7 +661,7 @@ router.post(
       }
     }
 
-    updateOverallTaskStatus(task.id, req.session.userId!);
+    await updateOverallTaskStatus(task.id, req.session.userId!);
 
     res.json({ success: true, data: updatedMember });
   })
@@ -696,14 +696,14 @@ router.post(
     }
 
     const now = new Date().toISOString();
-    const updatedMember = taskMemberRepo.update(member.id, {
+    const updatedMember = await taskMemberRepo.update(member.id, {
       memberStatus: 'approved',
       approvedAt: now,
       reminderEligible: false,
     });
 
     const tmpl = notifTemplates.taskApproved(task.title);
-    createNotification({
+    await createNotification({
       recipientUserId: member.userId,
       eventType: 'TASK_APPROVED',
       title: tmpl.title,
@@ -711,7 +711,7 @@ router.post(
       relatedTaskId: task.id,
     });
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'task',
       entityId: task.id,
@@ -721,7 +721,7 @@ router.post(
       message: `Submission approved`,
     });
 
-    updateOverallTaskStatus(task.id, req.session.userId!);
+    await updateOverallTaskStatus(task.id, req.session.userId!);
 
     res.json({ success: true, data: updatedMember });
   })
@@ -757,7 +757,7 @@ router.post(
     }
 
     const now = new Date().toISOString();
-    const updatedMember = taskMemberRepo.update(member.id, {
+    const updatedMember = await taskMemberRepo.update(member.id, {
       memberStatus: 'revision_requested',
       revisionRequestedAt: now,
       revisionReason: parse.data.reason,
@@ -765,7 +765,7 @@ router.post(
     });
 
     const tmpl = notifTemplates.revisionRequested(task.title);
-    createNotification({
+    await createNotification({
       recipientUserId: member.userId,
       eventType: 'REVISION_REQUESTED',
       title: tmpl.title,
@@ -773,7 +773,7 @@ router.post(
       relatedTaskId: task.id,
     });
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'task',
       entityId: task.id,
@@ -783,7 +783,7 @@ router.post(
       message: `Revision requested: ${parse.data.reason}`,
     });
 
-    updateOverallTaskStatus(task.id, req.session.userId!);
+    await updateOverallTaskStatus(task.id, req.session.userId!);
 
     res.json({ success: true, data: updatedMember });
   })
@@ -792,7 +792,7 @@ router.post(
 // ============================================================
 // HELPER: Recalculate overall task status based on members
 // ============================================================
-function updateOverallTaskStatus(taskId: string, actorId: string) {
+async function updateOverallTaskStatus(taskId: string, actorId: string) {
   const task = taskRepo.findById(taskId);
   if (!task || task.status === 'cancelled') return;
 
@@ -818,7 +818,7 @@ function updateOverallTaskStatus(taskId: string, actorId: string) {
   }
 
   if (newStatus !== task.status) {
-    taskRepo.update(taskId, { status: newStatus });
+    await taskRepo.update(taskId, { status: newStatus });
   }
 }
 

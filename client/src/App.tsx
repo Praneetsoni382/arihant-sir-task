@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { PageLoader } from './components/ui/LoadingSpinner';
+import { PushNotificationPrompt } from './components/notifications/PushNotificationPrompt';
+import { ForegroundNotificationToast } from './components/notifications/ForegroundNotificationToast';
 
 // Auth
 import { LoginPage } from './pages/auth/LoginPage';
@@ -47,6 +49,8 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
+          <ForegroundNotificationToast />
+          <PushNotificationPrompt />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/" element={<RootRedirect />} />

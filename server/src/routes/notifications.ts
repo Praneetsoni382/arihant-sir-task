@@ -36,7 +36,7 @@ router.patch(
       return;
     }
 
-    const updated = notificationRepo.update(req.params.id, {
+    const updated = await notificationRepo.update(req.params.id, {
       readAt: new Date().toISOString(),
       deliveryState: 'read',
     });
@@ -50,7 +50,7 @@ router.post(
   '/read-all',
   requireAuth,
   asyncHandler(async (req, res) => {
-    notificationRepo.markAllRead(req.session.userId!);
+    await notificationRepo.markAllRead(req.session.userId!);
     res.json({ success: true, message: 'All notifications marked as read' });
   })
 );

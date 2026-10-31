@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  HelpCircle,
   MessageSquare,
   Send,
-  PlusCircle,
   RotateCcw,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
@@ -14,7 +12,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { PageLoader } from '../../components/ui/LoadingSpinner';
 import { queryApi } from '../../services/api';
-import { formatDateTime, formatRelative } from '../../utils/formatDate';
+import { formatDateTime } from '../../utils/formatDate';
 import { getQueryStatusLabel, getStatusColors } from '../../utils/statusHelpers';
 import type { Query, QueryMessage } from '../../types';
 

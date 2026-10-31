@@ -20,11 +20,15 @@ export function TopBar({ title }: TopBarProps) {
     queryFn: async () => {
       try {
         const res = await notificationApi.getAll();
-        return (res.data?.data as { notifications: Notification[]; unreadCount: number }) || { notifications: [], unreadCount: 0 };
+        if (res?.data?.success && res?.data?.data) {
+          return res.data.data as { notifications: Notification[]; unreadCount: number };
+        }
+        return { notifications: [], unreadCount: 0 };
       } catch {
         return { notifications: [], unreadCount: 0 };
       }
     },
+    enabled: !!user,
     refetchInterval: 15000,
   });
 

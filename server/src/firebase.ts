@@ -16,6 +16,7 @@ import {
 import { initializeApp as initializeAdminApp, getApps as getAdminApps, cert, type App } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore, Firestore as AdminFirestore } from 'firebase-admin/firestore';
 import { getAuth, Auth } from 'firebase-admin/auth';
+import { getMessaging, Messaging } from 'firebase-admin/messaging';
 import fs from 'fs';
 import path from 'path';
 
@@ -65,6 +66,7 @@ export const firebaseConfig = loadConfig();
 let adminApp: App | null = null;
 let adminDbInstance: AdminFirestore | null = null;
 let adminAuthInstance: Auth | null = null;
+let adminMessagingInstance: Messaging | null = null;
 let clientDbInstance: ClientFirestore | null = null;
 let isConnected = false;
 
@@ -97,6 +99,12 @@ try {
     adminDbInstance = firebaseConfig.firestoreDatabaseId
       ? getAdminFirestore(adminApp, firebaseConfig.firestoreDatabaseId)
       : getAdminFirestore(adminApp);
+    try {
+      adminMessagingInstance = getMessaging(adminApp);
+      console.log('🔥 Firebase Admin Messaging initialized');
+    } catch (mErr) {
+      console.warn('⚠️ Firebase Admin Messaging initialization notice:', mErr);
+    }
   }
 } catch (err) {
   console.warn('⚠️ Firebase Admin initialization notice:', err);
@@ -165,5 +173,11 @@ export const firestoreDb = {
   }
 };
 
-export { adminApp, adminAuthInstance as adminAuth, adminDbInstance as adminDb, isConnected as isFirebaseConfigured };
+export {
+  adminApp,
+  adminAuthInstance as adminAuth,
+  adminDbInstance as adminDb,
+  adminMessagingInstance as adminMessaging,
+  isConnected as isFirebaseConfigured,
+};
 

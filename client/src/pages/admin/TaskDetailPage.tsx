@@ -4,13 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Calendar,
-  Clock,
   CheckCircle,
-  XCircle,
-  AlertTriangle,
   RotateCcw,
   MessageSquare,
-  HelpCircle,
   History,
   Send,
   Ban,
@@ -18,7 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
-import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';

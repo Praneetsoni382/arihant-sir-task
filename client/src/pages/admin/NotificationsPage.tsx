@@ -4,23 +4,22 @@ import { useNavigate } from 'react-router-dom';
 import {
   Bell,
   CheckCheck,
-  CheckCircle2,
   ExternalLink,
-  Info,
-  AlertTriangle,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
 import { PageLoader } from '../../components/ui/LoadingSpinner';
 import { notificationApi } from '../../services/api';
-import { formatDateTime, formatRelative } from '../../utils/formatDate';
+import { formatRelative } from '../../utils/formatDate';
 import type { Notification } from '../../types';
+
+import { useAuth } from '../../contexts/AuthContext';
 
 export function NotificationsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
   const { data: notifData, isLoading } = useQuery({
@@ -28,11 +27,15 @@ export function NotificationsPage() {
     queryFn: async () => {
       try {
         const res = await notificationApi.getAll();
-        return (res.data?.data as { notifications: Notification[]; unreadCount: number }) || { notifications: [], unreadCount: 0 };
+        if (res?.data?.success && res?.data?.data) {
+          return res.data.data as { notifications: Notification[]; unreadCount: number };
+        }
+        return { notifications: [], unreadCount: 0 };
       } catch {
         return { notifications: [], unreadCount: 0 };
       }
     },
+    enabled: !!user,
     refetchInterval: 10000,
   });
 

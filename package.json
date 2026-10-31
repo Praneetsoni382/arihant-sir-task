@@ -12,6 +12,8 @@
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "build": "npm --prefix server run build && npm --prefix client run build",
+    "start": "NODE_ENV=production node server.ts",
+    "lint": "npm --prefix client run lint",
     "test": "node test-e2e.js"
   },
   "devDependencies": {

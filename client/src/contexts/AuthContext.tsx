@@ -1,10 +1,7 @@
-// ============================================================
-// AUTH CONTEXT
-// ============================================================
-
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { authApi } from '../services/api';
 import type { User } from '../types';
+import { syncDeviceIfGranted, unregisterDeviceOnLogout } from '../services/fcm';
 
 interface AuthContextValue {
   user: User | null;
@@ -36,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const freshUser = res.data.data as User;
           setUser(freshUser);
           localStorage.setItem('auth_user', JSON.stringify(freshUser));
+          syncDeviceIfGranted(freshUser.id);
         }
       })
       .catch((err) => {
@@ -61,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       localStorage.setItem('auth_user', JSON.stringify(loggedUser));
       setUser(loggedUser);
+      syncDeviceIfGranted(loggedUser.id).catch(() => {});
       return loggedUser;
     } else {
       throw new Error(res.data.error ?? 'Login failed');
@@ -69,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      await unregisterDeviceOnLogout();
       await authApi.logout();
     } catch {
       // ignore

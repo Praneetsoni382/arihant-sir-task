@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   Send,
   MessageSquare,
-  HelpCircle,
   PlusCircle,
   RotateCcw,
   Users,
@@ -26,14 +25,14 @@ import { Select } from '../../components/ui/Select';
 import { PageLoader } from '../../components/ui/LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
 import { taskApi, statusRequestApi, queryApi, chatApi } from '../../services/api';
-import { formatDate, formatDateTime, formatRelative, isOverdue } from '../../utils/formatDate';
+import { formatDate, formatDateTime, isOverdue } from '../../utils/formatDate';
 import {
   getStatusColors,
   getStatusLabel,
   getPriorityColors,
   getPriorityLabel,
 } from '../../utils/statusHelpers';
-import type { TaskWithMembers, Query, StatusRequest, ChatMessage, TaskMember } from '../../types';
+import type { TaskWithMembers, Query, StatusRequest, ChatMessage } from '../../types';
 
 export function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();

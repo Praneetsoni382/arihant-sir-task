@@ -124,7 +124,7 @@ router.post(
       return;
     }
 
-    const qm = queryMessageRepo.create({
+    const qm = await queryMessageRepo.create({
       queryId: query.id,
       senderUserId: req.session.userId!,
       message: parse.data.message,
@@ -137,7 +137,7 @@ router.post(
     // If admin replies, notify the query creator
     if (req.session.role === 'admin' && query.createdBy !== req.session.userId) {
       const tmpl = notifTemplates.queryAnswered(task?.title ?? 'Unknown Task');
-      createNotification({
+      await createNotification({
         recipientUserId: query.createdBy,
         eventType: 'QUERY_ANSWERED',
         title: tmpl.title,
@@ -147,11 +147,11 @@ router.post(
       });
 
       if (query.status === 'open') {
-        queryRepo.update(query.id, { status: 'answered' });
+        await queryRepo.update(query.id, { status: 'answered' });
       }
     }
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'query',
       entityId: query.id,
@@ -195,12 +195,12 @@ router.patch(
       return;
     }
 
-    const updated = queryRepo.update(query.id, { status: newStatus });
+    const updated = await queryRepo.update(query.id, { status: newStatus });
 
     if (newStatus === 'resolved') {
       const task = taskRepo.findById(query.taskId);
       const tmpl = notifTemplates.queryResolved(task?.title ?? 'Unknown Task');
-      createNotification({
+      await createNotification({
         recipientUserId: query.createdBy,
         eventType: 'QUERY_RESOLVED',
         title: tmpl.title,
@@ -209,7 +209,7 @@ router.patch(
         relatedQueryId: query.id,
       });
 
-      createAuditEvent({
+      await createAuditEvent({
         actorUserId: req.session.userId!,
         entityType: 'query',
         entityId: query.id,
@@ -298,7 +298,7 @@ taskQueryRouter.post(
       return;
     }
 
-    const query = queryRepo.create({
+    const query = await queryRepo.create({
       taskId: task.id,
       createdBy: req.session.userId!,
       title: parse.data.title,
@@ -309,7 +309,7 @@ taskQueryRouter.post(
     });
 
     // Add description as first message
-    queryMessageRepo.create({
+    await queryMessageRepo.create({
       queryId: query.id,
       senderUserId: req.session.userId!,
       message: parse.data.description,
@@ -318,7 +318,7 @@ taskQueryRouter.post(
 
     const creator = userRepo.findById(req.session.userId!)!;
     const tmpl = notifTemplates.queryCreated(creator.fullName, task.title);
-    createNotification({
+    await createNotification({
       recipientUserId: task.createdBy,
       eventType: 'QUERY_CREATED',
       title: tmpl.title,
@@ -328,7 +328,7 @@ taskQueryRouter.post(
       navigationUrl: `/queries/${query.id}`,
     });
 
-    createAuditEvent({
+    await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'query',
       entityId: query.id,

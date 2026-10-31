@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Search, Calendar, Users, User, AlertTriangle } from 'lucide-react';
+import { Search, Users, User, AlertTriangle } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
