@@ -10,27 +10,40 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const stored = localStorage.getItem('auth_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isLoading, setIsLoading] = useState(!user);
 
   // Check session on mount
   useEffect(() => {
     let mounted = true;
     authApi.me()
       .then((res) => {
-        if (mounted && res.data.success) {
-          setUser(res.data.data as User);
+        if (mounted && res.data.success && res.data.data) {
+          const freshUser = res.data.data as User;
+          setUser(freshUser);
+          localStorage.setItem('auth_user', JSON.stringify(freshUser));
         }
       })
-      .catch(() => {
-        // Not authenticated — that's fine
+      .catch((err) => {
+        if (mounted && err?.response?.status === 401) {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_user');
+          setUser(null);
+        }
       })
       .finally(() => {
         if (mounted) setIsLoading(false);
@@ -38,17 +51,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { mounted = false; };
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     const res = await authApi.login(email, password);
-    if (res.data.success) {
-      setUser(res.data.data as User);
+    if (res.data.success && res.data.data) {
+      const loggedUser = res.data.data as User;
+      const token = (res.data as any).token;
+      if (token) {
+        localStorage.setItem('auth_token', token);
+      }
+      localStorage.setItem('auth_user', JSON.stringify(loggedUser));
+      setUser(loggedUser);
+      return loggedUser;
     } else {
       throw new Error(res.data.error ?? 'Login failed');
     }
   };
 
   const logout = async () => {
-    await authApi.logout();
+    try {
+      await authApi.logout();
+    } catch {
+      // ignore
+    }
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
     setUser(null);
     window.location.href = '/login';
   };

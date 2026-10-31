@@ -1,0 +1,1744 @@
+# MASTER IMPLEMENTATION PROMPT — COMPLETE FIREBASE INTEGRATION
+
+## Organizational Task Management & Status Tracking Application
+
+### 1. Your Role
+
+Act as a Senior Full-Stack Engineer, Firebase Architect, Backend Engineer, Database Designer, Authentication and Authorization Specialist, and Application Security Engineer.
+
+I am providing you with an already-developed application that was initially built using React, Vite, TypeScript, Node.js, Express.js, and TypeScript.
+
+The frontend, UI structure, application pages, and initial backend architecture have already been developed using Antigravity IDE.
+
+Your task is to integrate Firebase into this EXISTING application and make all previously designed features fully functional through persistent cloud database connectivity.
+
+This is an integration and completion task, NOT a request to rebuild the application.
+
+You must inspect the complete existing codebase before modifying anything.
+
+---
+
+# 2. Primary Objective
+
+Integrate the following Firebase services:
+
+1. Firebase Authentication.
+2. Cloud Firestore.
+3. Firebase Admin SDK.
+4. Firebase Security Rules.
+5. Firebase Storage ONLY if the existing application genuinely requires persistent file or attachment uploads.
+
+Do NOT integrate Firebase Cloud Messaging (FCM) in this phase.
+
+Do NOT implement browser push notifications, service workers, email notifications, SMS notifications, or any external notification delivery service.
+
+FCM will be integrated in a separate future phase.
+
+The current objective is to make every existing application feature operate through real, persistent Firebase-backed data.
+
+**Firestore must become the single authoritative source of truth for all application data.**
+
+There must be no production dependency on:
+- React component state as persistent storage.
+- localStorage as the source of truth.
+- sessionStorage as the source of truth.
+- IndexedDB as the source of truth.
+- Hardcoded employee or task records.
+- Temporary in-memory arrays.
+- Mock API responses.
+- Simulated authentication.
+- Fake dashboard metrics.
+
+Temporary frontend state is acceptable for UI interactions, but all important application data must be read from and written to Firebase through the backend.
+
+---
+
+# 3. IMPORTANT: Preserve the Existing Application
+
+Before implementation:
+
+1. Inspect the entire project structure.
+2. Understand the existing React pages and components.
+3. Inspect all Express routes, controllers, services, and middleware.
+4. Identify all currently implemented features.
+5. Identify buttons, forms, actions, and workflows that currently do not work.
+6. Map each existing frontend action to its corresponding backend API requirement.
+7. Identify the current data structures and update them only where necessary.
+8. Prepare a Firebase integration plan internally and proceed with implementation.
+
+Do not replace the existing UI with a new template.
+
+Do not unnecessarily change the design, colors, typography, navigation, layout, or page structure.
+
+Preserve existing working functionality.
+
+Do not remove any previously discussed feature merely because it is not yet connected to the backend.
+
+Do not create duplicate pages or duplicate functionality.
+
+If an existing feature is incomplete, complete it using the architecture and requirements below.
+
+The existing application must remain recognizable after integration.
+
+---
+
+# 4. Required Architecture
+
+Implement the following architecture:
+
+React + Vite + TypeScript
+        |
+        | HTTPS REST API
+        |
+Node.js + Express.js + TypeScript
+        |
+        | Firebase Admin SDK
+        |
+Firebase Authentication + Cloud Firestore
+        |
+Persistent cloud data
+
+### Frontend responsibilities
+
+- Display application pages.
+- Handle user interactions.
+- Submit API requests.
+- Maintain authenticated UI state.
+- Display backend responses.
+- Refresh or subscribe to relevant data when updates occur.
+- Handle loading, success, empty, and error states.
+
+### Backend responsibilities
+
+- Verify Firebase ID tokens.
+- Identify the authenticated user.
+- Enforce role-based authorization.
+- Validate incoming requests.
+- Execute business logic.
+- Perform Firestore reads and writes.
+- Maintain data consistency.
+- Prevent unauthorized modifications.
+- Generate audit events.
+- Create application notifications.
+- Calculate dashboard metrics.
+- Enforce task lifecycle and group assignment rules.
+
+### Firebase responsibilities
+
+- Authenticate users.
+- Persist application records.
+- Store authoritative user roles and account states.
+- Maintain task and employee relationships.
+- Support persistent application data across sessions and devices.
+
+IMPORTANT:
+
+The frontend must NEVER receive Firebase Admin SDK credentials.
+
+Never expose service account JSON, private keys, or administrative credentials inside frontend files.
+
+Never perform privileged administrative operations directly from the browser.
+
+All privileged Firestore writes must go through the authenticated Express backend.
+
+Use the Firebase Admin SDK only on the server.
+
+---
+
+# 5. Firebase Project Configuration
+
+Integrate Firebase using environment variables.
+
+Frontend environment configuration:
+
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_APP_ID=
+
+Backend environment configuration:
+
+FIREBASE_PROJECT_ID=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=
+FIREBASE_STORAGE_BUCKET=
+
+Use the appropriate Firebase initialization method for the existing deployment environment.
+
+Support secure service account configuration through the hosting environment or application default credentials where available.
+
+Do not hardcode credentials.
+
+Do not commit .env files containing secrets.
+
+Update .gitignore appropriately.
+
+Provide an .env.example containing variable names without real secrets.
+
+If Firebase configuration is missing, display a clear setup error instead of silently switching to mock data.
+
+Do not assume Firebase is configured merely because the application starts successfully.
+
+Verify actual connectivity.
+
+---
+
+# 6. Firebase Authentication — Complete Implementation
+
+Authentication must be real and persistent.
+
+There are two roles:
+
+- ADMIN
+- EMPLOYEE
+
+There must be NO public employee registration.
+
+Employees must be created by an authorized administrator.
+
+## 6.1 Admin authentication
+
+Implement secure admin login.
+
+The admin account must be initialized through a secure server-side setup or controlled bootstrap process.
+
+Do not allow a normal user to promote themselves to ADMIN.
+
+Do not rely on a frontend role selector for authorization.
+
+Admin credentials must never be hardcoded into frontend source code.
+
+If an initial admin account needs to be created, implement a one-time secure bootstrap mechanism using server-side configuration.
+
+The bootstrap mechanism must not allow arbitrary public creation of administrator accounts.
+
+After successful initialization, disable or restrict the bootstrap mechanism.
+
+## 6.2 Employee authentication
+
+When an administrator creates an employee, the backend must:
+
+1. Validate employee details.
+2. Validate that the employee ID is unique.
+3. Generate or securely establish the employee's login credentials.
+4. Create the Firebase Authentication account using Firebase Admin SDK.
+5. Assign the employee role securely.
+6. Create the corresponding Firestore user profile.
+7. Store the Firebase UID as the permanent identity reference.
+8. Store the employee ID separately as the organizational identifier.
+9. Return only the appropriate account-creation information to the administrator.
+
+Use Firebase Authentication email/password authentication.
+
+If the existing application does not collect employee email addresses, design a secure and consistent login identifier strategy. Do not generate insecure predictable passwords or expose passwords in Firestore.
+
+For employee credentials, prefer an administrator-controlled temporary password or secure account activation process.
+
+If temporary passwords are used:
+- Never store plaintext passwords in Firestore.
+- Never log passwords.
+- Never return passwords in subsequent employee listing APIs.
+- Require password change where the chosen activation flow supports it.
+- Use Firebase Authentication password reset or equivalent secure recovery procedures.
+
+Do not create duplicate Firebase accounts when employee creation is retried.
+
+Use deterministic account-creation checks and handle partial failures safely.
+
+## 6.3 Authentication persistence
+
+After login:
+
+- Firebase Authentication must maintain the authenticated session.
+- The frontend must obtain the Firebase ID token.
+- Send the ID token to Express using the Authorization header:
+
+Authorization: Bearer <Firebase_ID_TOKEN>
+
+- Express must verify the token using Firebase Admin SDK.
+- Every protected request must identify the actual authenticated UID.
+- The backend must retrieve the authoritative user role and account state from Firestore.
+- Do not trust a role supplied by the frontend.
+
+Handle:
+- Login.
+- Logout.
+- Session restoration.
+- Expired ID tokens.
+- Token refresh.
+- Disabled accounts.
+- Deleted accounts.
+- Unauthorized access.
+- Invalid credentials.
+
+When an employee is deactivated, their access must be revoked or denied promptly. Consider revoking refresh tokens and checking the authoritative account status on protected backend requests.
+
+When an employee logs out and logs back in, their previously stored tasks, status, submissions, queries, and notifications must still exist.
+
+When the same employee logs in from another device, the same account data must appear.
+
+---
+
+# 7. Firestore Database Architecture
+
+Design a normalized, scalable Firestore document structure.
+
+Firestore is a document database, not a SQL database. Do not create SQL tables or attempt to execute SQL queries.
+
+Use collections and documents with explicit relationships.
+
+The following structure is the required baseline. You may refine it where the existing codebase requires, but preserve the logical relationships and security boundaries.
+
+## 7.1 users collection
+
+Path:
+
+users/{uid}
+
+Fields:
+
+- uid
+- employeeId
+- name
+- email
+- role: ADMIN or EMPLOYEE
+- department
+- designation
+- accountStatus: ACTIVE or DEACTIVATED
+- createdAt
+- updatedAt
+- createdBy
+- lastLoginAt (if maintained securely)
+
+Rules:
+
+- Firebase UID is the primary identity.
+- Employee ID must be unique.
+- Employee ID must not be used as a substitute for Firebase UID.
+- Passwords must never be stored here.
+- Employees cannot change their own role.
+- Employees cannot activate themselves after deactivation.
+
+## 7.2 tasks collection
+
+Path:
+
+tasks/{taskId}
+
+Fields:
+
+- taskId
+- title
+- description
+- priority
+- category
+- department
+- assignmentType: SOLO or GROUP
+- assignedBy
+- assignedEmployeeIds
+- createdAt
+- updatedAt
+- deadline
+- status
+- taskNote
+- reminderSettings
+- reviewStatus
+- cancelledAt
+- cancelledBy
+
+Use Firestore Timestamp values for dates.
+
+Do not store critical dates as inconsistent formatted strings.
+
+The interface can display dates in DD/MM/YYYY format.
+
+Use Asia/Kolkata as the application's business timezone.
+
+A group task must be represented as ONE shared task document.
+
+Do not duplicate a group task for every employee.
+
+## 7.3 taskMembers collection
+
+Path:
+
+tasks/{taskId}/members/{uid}
+
+Fields:
+
+- uid
+- employeeId
+- employeeName
+- assignedAt
+- individualStatus
+- individualSubmissionStatus
+- submissionText or submissionNote, if the existing interface supports it
+- submittedAt
+- lastStatusUpdatedAt
+- blockerDescription
+- blockerReportedAt
+- approvedAt
+- approvedBy
+- revisionRequestedAt
+- revisionReason
+- updatedAt
+
+This collection is extremely important.
+
+A shared task must maintain separate progress for every assigned employee.
+
+For example:
+
+Task: Prepare quarterly report.
+
+Assigned employees:
+- Employee A
+- Employee B
+- Employee C
+
+All three must reference the same taskId.
+
+Each employee must have their own taskMembers document.
+
+If Employee A submits the task, only Employee A's submission state changes.
+
+Employee B and Employee C must remain independently pending or in progress.
+
+A group task becomes ready for group-level review only when every required member has submitted, unless the administrator explicitly reviews individual submissions earlier.
+
+Do not let one member's submission automatically complete the entire group task.
+
+## 7.4 statusRequests collection
+
+Path:
+
+statusRequests/{requestId}
+
+Fields:
+
+- requestId
+- taskId
+- employeeId
+- createdBy
+- question
+- requestType
+- createdAt
+- response
+- respondedAt
+- status: PENDING, RESPONDED, CLOSED
+
+Each employee's response must be independently stored.
+
+For group tasks, the manager must be able to request updates from all members or selected members.
+
+Do not assume one response represents the entire group.
+
+## 7.5 queries collection
+
+Path:
+
+queries/{queryId}
+
+Fields:
+
+- queryId
+- taskId
+- employeeId
+- employeeName
+- title
+- description
+- category
+- priority
+- status: OPEN, ANSWERED, RESOLVED
+- createdAt
+- updatedAt
+- resolvedAt
+- resolvedBy
+
+## 7.6 queryMessages subcollection
+
+Path:
+
+queries/{queryId}/messages/{messageId}
+
+Fields:
+
+- messageId
+- senderUid
+- senderRole
+- message
+- createdAt
+
+Preserve the complete query conversation.
+
+Resolving a query must not automatically complete its associated task.
+
+## 7.7 taskMessages subcollection
+
+Path:
+
+tasks/{taskId}/messages/{messageId}
+
+Fields:
+
+- messageId
+- senderUid
+- senderName
+- senderRole
+- message
+- createdAt
+
+This is for task-specific group communication.
+
+Only authorized task participants and administrators may access the conversation.
+
+Do not expose one task's conversation to unrelated employees.
+
+## 7.8 notifications collection
+
+Path:
+
+notifications/{notificationId}
+
+Fields:
+
+- notificationId
+- recipientUid
+- type
+- title
+- message
+- relatedTaskId
+- relatedEntityId
+- createdAt
+- read
+- readAt
+- navigationTarget
+
+Notifications must be stored persistently.
+
+Each recipient must have their own notification record.
+
+Do not create one shared notification document that employees can accidentally modify for each other.
+
+## 7.9 reminderSettings collection
+
+Path:
+
+reminderSettings/{uid}
+
+Fields:
+
+- uid
+- enabled
+- reminderTimes
+- timezone: Asia/Kolkata
+- updatedAt
+- updatedBy
+
+Store reminder preferences and configuration.
+
+## 7.10 reminderOccurrences collection
+
+Path:
+
+reminderOccurrences/{occurrenceId}
+
+Fields:
+
+- occurrenceId
+- taskId
+- employeeId
+- scheduledFor
+- createdAt
+- reminderType
+- status
+- deliveryStatus
+- deduplicationKey
+
+This collection is for persistent reminder evaluation and duplicate prevention.
+
+Do not implement FCM or actual push delivery in this phase.
+
+Implement only the current in-app reminder functionality and the existing reminder evaluation logic.
+
+## 7.11 auditEvents collection
+
+Path:
+
+auditEvents/{eventId}
+
+Fields:
+
+- eventId
+- actorUid
+- actorRole
+- actionType
+- entityType
+- entityId
+- taskId
+- employeeId
+- description
+- previousValue
+- newValue
+- createdAt
+
+Important actions must generate audit records.
+
+Examples:
+- Employee created.
+- Employee deactivated.
+- Task created.
+- Task assigned.
+- Task reassigned.
+- Deadline changed.
+- Status updated.
+- Blocker reported.
+- Status request created.
+- Status response submitted.
+- Query created.
+- Query answered.
+- Task submitted.
+- Revision requested.
+- Task approved.
+- Task cancelled.
+
+Audit records must not be editable or deletable by employees.
+
+---
+
+# 8. Role-Based Access Control
+
+Implement authorization centrally in Express middleware and backend services.
+
+Never rely only on hiding buttons in React.
+
+## ADMIN permissions
+
+An administrator can:
+
+- Create employees.
+- Edit employee details.
+- Deactivate and reactivate employees.
+- View all employees.
+- Create tasks.
+- Assign solo tasks.
+- Assign group tasks.
+- Edit tasks.
+- Change deadlines.
+- Reassign employees.
+- Cancel tasks.
+- View all task statuses.
+- Send status requests.
+- Review status responses.
+- View employee queries.
+- Answer and resolve queries.
+- Review task conversations.
+- Review submissions.
+- Approve submissions.
+- Request revisions.
+- View notifications.
+- View audit history.
+- Access reports and filters.
+- Configure reminder settings.
+
+## EMPLOYEE permissions
+
+An employee can:
+
+- View their own profile.
+- View tasks assigned to them.
+- View group members belonging to their tasks.
+- Update their individual task status.
+- Report blockers.
+- Resolve their blockers.
+- Respond to status requests addressed to them.
+- Create queries for their assigned tasks.
+- View responses to their queries.
+- Participate in authorized task conversations.
+- Submit their individual task contribution.
+- View their own notifications.
+- View their own relevant task history.
+
+Employees must NOT:
+
+- Create administrator accounts.
+- Create other employees.
+- Assign tasks to other users.
+- View unrelated employee records.
+- Modify another employee's progress.
+- Approve their own submissions.
+- Modify audit records.
+- Change their own role.
+- Access tasks they are not assigned to.
+
+Validate these permissions on every protected API endpoint.
+
+---
+
+# 9. Firebase Security Rules
+
+Create proper Firestore security rules.
+
+Since privileged writes and business operations are handled through Express using Firebase Admin SDK, do not create broad client-side write permissions.
+
+Important:
+
+Firebase Admin SDK bypasses Firestore Security Rules.
+
+Therefore, your Express backend must independently enforce all authorization and validation rules.
+
+The Firestore rules should deny unauthenticated access and restrict direct client access to the minimum required.
+
+If the application reads data exclusively through Express, deny direct client reads and writes to application collections.
+
+If you implement direct client-side realtime listeners for selected data, allow only strictly scoped reads for the authenticated owner or authorized task participant.
+
+Never permit arbitrary employee queries across the entire users or tasks collection.
+
+Never permit employees to modify role, account status, task ownership, review decisions, or audit events.
+
+Provide separate rules for every collection and subcollection.
+
+Create and document all required Firestore indexes.
+
+Do not use permissive development rules such as:
+
+allow read, write: if true;
+
+Do not deploy insecure temporary rules as a permanent solution.
+
+---
+
+# 10. Employee Creation — Complete End-to-End Workflow
+
+This feature must work completely.
+
+Admin opens Employee Management.
+
+Admin enters:
+
+- Employee name.
+- Employee ID.
+- Email/login identifier.
+- Department.
+- Designation, if applicable.
+
+Admin submits the form.
+
+Backend must:
+
+1. Authenticate the administrator.
+2. Verify ADMIN permissions.
+3. Validate the submitted information.
+4. Check Employee ID uniqueness.
+5. Check email uniqueness.
+6. Create Firebase Authentication account.
+7. Create the Firestore user profile.
+8. Handle partial failure safely.
+9. Return the newly created employee record.
+10. Generate an audit event.
+11. Generate an appropriate admin confirmation.
+
+The employee must immediately become available in the task assignment interface.
+
+Employee lists must load from Firestore through the backend.
+
+Do not use hardcoded employee dropdown options.
+
+Employee deactivation must prevent future login and protected API access.
+
+Reactivation must restore access without creating a duplicate account.
+
+Deleting an employee must not accidentally destroy historical task and audit records. Prefer deactivation and soft deletion.
+
+---
+
+# 11. Task Creation and Assignment — Complete Workflow
+
+This is one of the most important modules.
+
+When the administrator creates a task, the backend must:
+
+1. Authenticate the administrator.
+2. Validate the task details.
+3. Validate the deadline.
+4. Validate the selected employees.
+5. Verify all assigned employees are active.
+6. Determine SOLO or GROUP assignment.
+7. Create exactly one task document.
+8. Create one taskMembers document for every assigned employee.
+9. Generate an audit event.
+10. Generate an individual notification for each assigned employee.
+11. Return the created task.
+
+### Solo assignment
+
+One task, one assigned employee, one taskMembers document.
+
+### Group assignment
+
+One task, multiple assigned employees, one taskMembers document per employee.
+
+When an employee opens their dashboard, the newly assigned task must appear.
+
+When the administrator opens the task details, all assigned employees and their individual progress must appear.
+
+Do not duplicate tasks to simulate group assignments.
+
+Do not allow one employee to see another employee's private information unnecessarily.
+
+### Task editing
+
+When the administrator changes:
+
+- Task title.
+- Description.
+- Priority.
+- Deadline.
+- Department.
+- Assignment.
+- Task status or configuration.
+
+Persist the update and ensure relevant employees receive updated task data.
+
+When the deadline changes, future reminder eligibility must use the new deadline.
+
+When an employee is removed from a group task, update the assignment relationship safely and preserve relevant historical records.
+
+---
+
+# 12. Task Status Management
+
+Implement the previously defined status workflow.
+
+Supported individual statuses:
+
+- PENDING
+- IN_PROGRESS
+- BLOCKED
+- SUBMITTED_FOR_REVIEW
+- REVISION_REQUESTED
+- APPROVED
+- CANCELLED
+
+Overdue must be calculated from the deadline and current time. Do not treat overdue as a replacement for actual progress status.
+
+Implement valid transitions.
+
+Examples:
+
+PENDING → IN_PROGRESS
+
+PENDING → BLOCKED
+
+IN_PROGRESS → BLOCKED
+
+IN_PROGRESS → SUBMITTED_FOR_REVIEW
+
+BLOCKED → IN_PROGRESS
+
+BLOCKED → SUBMITTED_FOR_REVIEW
+
+SUBMITTED_FOR_REVIEW → APPROVED
+
+SUBMITTED_FOR_REVIEW → REVISION_REQUESTED
+
+REVISION_REQUESTED → IN_PROGRESS
+
+Cancellation must be administrator-controlled.
+
+Validate transitions on the backend.
+
+Do not allow employees to directly change their status to APPROVED.
+
+When an employee changes status:
+
+1. Verify the employee is assigned to the task.
+2. Verify the requested transition.
+3. Update only that employee's taskMembers record.
+4. Update relevant aggregate task information if needed.
+5. Generate audit history.
+6. Generate notifications for relevant administrators.
+7. Ensure all concerned dashboards reflect the update.
+
+Use Firestore transactions or appropriate atomic operations when multiple related records must change together.
+
+---
+
+# 13. Submission, Review, Approval and Revision
+
+Employee submission must be stored persistently.
+
+When an employee submits their task:
+
+- Update their individual task member record.
+- Set individual status to SUBMITTED_FOR_REVIEW.
+- Record submittedAt.
+- Preserve any submission note or existing submission fields.
+- Generate an audit event.
+- Notify the administrator.
+- Update the employee dashboard.
+- Update the admin dashboard.
+
+When an administrator approves:
+
+- Verify administrator permissions.
+- Update the correct employee's review state.
+- Set individual status to APPROVED.
+- Record approvedAt and approvedBy.
+- Generate audit history.
+- Notify the employee.
+
+When an administrator requests revision:
+
+- Store the revision reason.
+- Set individual status to REVISION_REQUESTED.
+- Notify the employee.
+- Make the task available for further work.
+
+For group tasks, maintain independent submission and review states for each employee.
+
+Do not automatically approve the whole group because one person has been approved.
+
+The administrator must be able to distinguish:
+
+- Not submitted.
+- Submitted.
+- Awaiting review.
+- Approved.
+- Revision requested.
+
+---
+
+# 14. Status Interrogation / Ask Status Module
+
+Implement the existing manager-to-employee status request feature.
+
+Admin can send a question to:
+
+- One employee.
+- Selected employees.
+- All employees assigned to a group task.
+
+Each employee receives an independent status request.
+
+When the employee responds:
+
+- Save the response persistently.
+- Record the response timestamp.
+- Update the request status.
+- Notify the administrator.
+- Update the relevant admin dashboard.
+
+Responses must remain visible after logout and login.
+
+Do not merge multiple employee responses into a single response field.
+
+Preserve the full history of requests and responses.
+
+---
+
+# 15. Query Management
+
+Employees must be able to raise task-related queries.
+
+Persist:
+
+- Query title.
+- Description.
+- Category.
+- Priority.
+- Employee ID.
+- Employee UID.
+- Related task ID.
+- Current status.
+- Created timestamp.
+
+The administrator must be able to view all authorized queries, respond, and resolve them.
+
+Maintain every conversation message inside the query's messages subcollection.
+
+A response from the administrator must become visible to the correct employee.
+
+An employee must not be able to access another employee's private queries unless the product's existing group-query permissions explicitly allow it.
+
+Query resolution must not automatically mark the task as completed.
+
+---
+
+# 16. Group Task Communication
+
+Connect the existing task-specific group conversation interface to Firestore.
+
+Persist every message.
+
+Use:
+
+tasks/{taskId}/messages/{messageId}
+
+Every message must include sender UID, sender name, sender role, message content, and server timestamp.
+
+Only assigned employees and authorized administrators may access the conversation.
+
+Messages must remain available after refreshing or changing devices.
+
+Prevent unrelated users from reading or sending messages.
+
+If realtime synchronization is implemented, use properly scoped Firestore listeners and clean them up when components unmount.
+
+Do not claim realtime messaging works across devices unless it has actually been implemented and tested.
+
+---
+
+# 17. In-App Notification System
+
+Connect all existing in-app notifications to persistent Firestore data.
+
+Notifications must be generated from backend business events.
+
+Examples:
+
+- New task assigned.
+- Task updated.
+- Deadline changed.
+- Employee reassigned.
+- Task cancelled.
+- Status request received.
+- Status response received.
+- Query created.
+- Query answered.
+- Blocker reported.
+- Blocker resolved.
+- Task submitted.
+- Submission approved.
+- Revision requested.
+- Group member submitted.
+- Group task ready for review.
+- New group message.
+- Reminder due.
+- Task overdue.
+
+Each notification must be associated with its intended recipient.
+
+The employee must see only their notifications.
+
+The administrator must see the relevant administrative notifications.
+
+Implement:
+
+- Notification list.
+- Unread count.
+- Mark as read.
+- Mark all as read, if already supported.
+- Notification navigation.
+- Persistent notification history.
+
+Avoid duplicate notifications when an operation is retried.
+
+Use server-side event creation and deterministic idempotency keys where appropriate.
+
+IMPORTANT:
+
+Do not integrate FCM now.
+
+Do not request browser notification permission.
+
+Do not create service workers.
+
+Keep the notification generation logic separate from the notification delivery mechanism so that FCM can be connected later without rewriting the task business logic.
+
+---
+
+# 18. Reminder System — Current Phase Only
+
+Connect the existing reminder configuration and eligibility logic to persistent Firebase data.
+
+Support configured reminder times in Asia/Kolkata.
+
+The system must evaluate reminders individually for each assigned employee.
+
+Reminder eligibility must consider:
+
+- Whether the task is cancelled.
+- Whether the employee has submitted.
+- Whether the employee has been approved.
+- Whether revision has been requested.
+- Whether the employee has been removed from the assignment.
+- Whether the deadline has changed.
+- Whether the reminder occurrence already exists.
+
+A group member's reminder eligibility must not depend on another group member's submission.
+
+When an employee submits their task, ordinary pending reminders for that employee must stop.
+
+When revision is requested, the appropriate reminder eligibility may become active again.
+
+Use persistent reminder occurrence records and duplicate prevention.
+
+For now, connect only the existing reminder configuration and manual evaluation/preview functionality.
+
+Do not introduce an unrequested background scheduler.
+
+Do not implement FCM, push notifications, email, or SMS.
+
+Do not claim that reminders are delivered to a device when only an in-app record has been created.
+
+---
+
+# 19. Dashboard Synchronization
+
+This requirement is critical.
+
+All dashboards must reflect the same authoritative Firestore data.
+
+## Admin dashboard
+
+Display the existing four metric cards:
+
+1. Total Tasks Assigned.
+2. Tasks Completed.
+3. Tasks Pending.
+4. Requires Review / Active Queries.
+
+Calculate metrics using actual Firestore records.
+
+Do not use hardcoded numbers.
+
+Ensure metrics use clearly defined aggregation rules, especially for group tasks.
+
+For example, distinguish between the number of shared tasks and the number of individual employee assignments when calculating counts.
+
+Connect:
+
+- Employee list.
+- Task list.
+- Task details.
+- Employee progress.
+- Group progress.
+- Pending reviews.
+- Active queries.
+- Notifications.
+- Audit history.
+- Reports and filters.
+
+## Employee dashboard
+
+Display the existing metric cards:
+
+1. Submitted Tasks.
+2. Pending Tasks.
+3. Responses for Queries.
+
+Connect:
+
+- Assigned task list.
+- Task details.
+- Individual status.
+- Group membership.
+- Submission state.
+- Revision requests.
+- Status requests.
+- Queries.
+- Notifications.
+- Relevant task history.
+
+An employee must never see another employee's private dashboard data.
+
+## Synchronization requirements
+
+When an administrator creates a task, the assigned employee must see it.
+
+When an employee updates their status, the administrator must see it.
+
+When an employee submits a task, the administrator must see the submission.
+
+When an administrator requests a revision, the employee must see it.
+
+When an administrator answers a query, the employee must see the answer.
+
+When an employee responds to a status request, the administrator must see the response.
+
+When an administrator changes a deadline, the affected employees must see the updated deadline.
+
+These updates must remain correct after:
+
+- Browser refresh.
+- Logout and login.
+- Opening the application on another device.
+- Opening the same account in another browser.
+- Multiple users performing operations simultaneously.
+
+Use one consistent data-fetching and synchronization strategy.
+
+The Express API must remain the authoritative business-logic layer.
+
+You may use:
+- TanStack Query for caching, invalidation, and refetching.
+- Firestore realtime listeners for carefully scoped read-only subscriptions where useful.
+- Server-driven refresh or polling where realtime listeners would introduce unnecessary complexity.
+
+Do not create competing sources of truth between frontend cache and Firestore.
+
+Invalidate or refresh affected queries after every successful mutation.
+
+Clean up all subscriptions properly.
+
+Do not display stale dashboard values as if they were current.
+
+---
+
+# 20. Backend API Integration
+
+Inspect existing Express routes first.
+
+Preserve useful existing endpoints and connect them to real Firebase services.
+
+Create or complete the required API routes.
+
+Suggested API organization:
+
+### Authentication
+
+POST /api/auth/session
+GET /api/auth/me
+POST /api/auth/logout
+
+### Employees
+
+POST /api/employees
+GET /api/employees
+GET /api/employees/:uid
+PATCH /api/employees/:uid
+PATCH /api/employees/:uid/status
+
+### Tasks
+
+POST /api/tasks
+GET /api/tasks
+GET /api/tasks/:taskId
+PATCH /api/tasks/:taskId
+POST /api/tasks/:taskId/cancel
+POST /api/tasks/:taskId/reassign
+
+### Task members
+
+GET /api/tasks/:taskId/members
+GET /api/tasks/:taskId/my-status
+PATCH /api/tasks/:taskId/my-status
+POST /api/tasks/:taskId/submit
+POST /api/tasks/:taskId/members/:uid/approve
+POST /api/tasks/:taskId/members/:uid/request-revision
+
+### Status requests
+
+POST /api/tasks/:taskId/status-requests
+GET /api/status-requests
+POST /api/status-requests/:requestId/respond
+
+### Queries
+
+POST /api/tasks/:taskId/queries
+GET /api/queries
+GET /api/queries/:queryId
+POST /api/queries/:queryId/messages
+PATCH /api/queries/:queryId/resolve
+
+### Group messages
+
+GET /api/tasks/:taskId/messages
+POST /api/tasks/:taskId/messages
+
+### Notifications
+
+GET /api/notifications
+PATCH /api/notifications/:notificationId/read
+PATCH /api/notifications/read-all
+
+### Dashboard
+
+GET /api/dashboard/admin
+GET /api/dashboard/employee
+
+### History and reports
+
+GET /api/audit-events
+GET /api/reports
+
+### Reminders
+
+GET /api/reminders/settings
+PATCH /api/reminders/settings
+POST /api/reminders/evaluate
+
+These are suggested endpoint names, not an instruction to create duplicate routes if equivalent routes already exist.
+
+Use consistent response structures.
+
+Example:
+
+{
+  "success": true,
+  "data": {},
+  "message": "Operation completed successfully"
+}
+
+For validation errors:
+
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": {}
+}
+
+Use appropriate HTTP status codes.
+
+Never expose internal stack traces, private credentials, service account data, or sensitive user information in API responses.
+
+Validate all incoming request bodies, parameters, and query strings using Zod or the project's existing validation framework.
+
+---
+
+# 21. Data Consistency and Concurrency
+
+This application involves multiple employees and administrators interacting with shared tasks.
+
+Therefore, consistency is essential.
+
+Use Firestore transactions and batched writes when multiple documents must be updated together.
+
+Examples:
+
+- Creating a task and its taskMembers records.
+- Assigning a task and creating notifications.
+- Submitting an individual assignment and recording the audit event.
+- Approving a submission and creating the employee notification.
+- Reassigning an employee.
+- Resolving a query and recording its audit event.
+
+Avoid partial updates that leave the application in an inconsistent state.
+
+Design safe retry behavior.
+
+Use idempotency keys or deterministic event IDs where appropriate.
+
+Use server-generated timestamps for authoritative events.
+
+Do not trust client-generated timestamps for security-sensitive ordering.
+
+Use pagination for growing collections.
+
+Avoid fetching the entire database to calculate dashboard metrics.
+
+Use efficient indexed queries and maintain aggregate documents only where justified.
+
+If aggregate counters are maintained, update them consistently and provide a way to reconcile them against authoritative task/member records.
+
+Avoid duplicate task member documents.
+
+Avoid duplicate employee accounts.
+
+Avoid duplicate notification generation.
+
+---
+
+# 22. Frontend Integration
+
+Connect every existing UI action to a real backend API.
+
+This includes:
+
+- Login forms.
+- Logout buttons.
+- Employee creation forms.
+- Employee editing.
+- Employee activation/deactivation.
+- Task creation.
+- Task editing.
+- Solo assignment.
+- Group assignment.
+- Status updates.
+- Blocker reporting.
+- Blocker resolution.
+- Status requests.
+- Status responses.
+- Query creation.
+- Query responses.
+- Query resolution.
+- Group messaging.
+- Task submission.
+- Approval.
+- Revision requests.
+- Notifications.
+- Reminder settings.
+- Reports.
+- Filters.
+- Search.
+- History.
+
+No visible button should be decorative or non-functional.
+
+If a feature is not available because it is outside the current phase, communicate that clearly rather than presenting a fake successful action.
+
+Implement:
+
+- Loading indicators.
+- Form validation.
+- Error handling.
+- Success feedback.
+- Empty states.
+- Unauthorized states.
+- Network failure handling.
+- Session expiration handling.
+- Proper confirmation for destructive actions.
+
+Use centralized API services and typed request/response interfaces.
+
+Do not scatter raw fetch calls throughout components.
+
+Keep frontend code maintainable.
+
+---
+
+# 23. Security Requirements
+
+Security is mandatory.
+
+Implement:
+
+1. Firebase ID token verification on protected backend routes.
+2. Centralized role-based authorization.
+3. Ownership and task-membership checks.
+4. Zod validation.
+5. Helmet and secure Express configuration.
+6. Restricted CORS origins.
+7. Rate limiting for authentication-sensitive endpoints.
+8. Secure handling of employee credentials.
+9. No plaintext password storage.
+10. No client-side administrative credentials.
+11. No unrestricted Firestore rules.
+12. No employee access to unrelated records.
+13. No employee modification of audit events.
+14. No client-side role escalation.
+15. No sensitive information in application logs.
+16. Safe error handling.
+17. Safe account deactivation.
+18. Secure handling of Firebase configuration.
+19. Protection against duplicate account creation.
+20. Protection against unauthorized task approval.
+
+Use least-privilege access.
+
+Do not weaken security to make a feature work.
+
+Remember: Firebase Admin SDK bypasses Firestore Security Rules. Authorization must therefore be enforced in Express on every privileged operation.
+
+---
+
+# 24. Performance and Firestore Cost Awareness
+
+Build the application efficiently.
+
+- Do not continuously fetch every collection.
+- Use pagination.
+- Use targeted queries.
+- Avoid unnecessary realtime listeners.
+- Unsubscribe listeners on unmount.
+- Avoid repeatedly recalculating all dashboard data.
+- Use efficient Firestore indexes.
+- Avoid N+1 query patterns where practical.
+- Do not load unrelated employee records into employee dashboards.
+- Use TanStack Query caching and invalidation appropriately.
+
+Design for an initial organization of approximately 50 employees while keeping the architecture extensible.
+
+Do not claim unlimited free Firebase usage.
+
+Do not create unnecessary high-frequency database reads or writes.
+
+---
+
+# 25. Error Handling and Recovery
+
+Implement safe handling for:
+
+- Firebase initialization failure.
+- Firestore unavailable.
+- Authentication failure.
+- Invalid ID token.
+- Expired session.
+- Duplicate employee ID.
+- Duplicate email.
+- Employee creation partial failure.
+- Task assignment failure.
+- Invalid task status transition.
+- Unauthorized task access.
+- Concurrent updates.
+- Missing task member.
+- Failed notification creation.
+- Network interruption.
+- Invalid or missing Firestore documents.
+
+Do not silently swallow errors.
+
+Do not show success messages when Firebase writes fail.
+
+If a multi-document operation fails, preserve consistency and provide an actionable error.
+
+Use structured server logs without exposing secrets.
+
+---
+
+# 26. Testing Requirements
+
+Do not stop after connecting Firebase.
+
+Test the complete application workflow.
+
+### Test 1 — Administrator authentication
+
+- Log in as administrator.
+- Refresh browser.
+- Confirm session restoration.
+- Confirm admin-only pages are protected.
+
+### Test 2 — Employee creation
+
+- Create Employee A.
+- Create Employee B.
+- Verify Firebase Authentication accounts.
+- Verify Firestore user profiles.
+- Verify unique employee IDs.
+- Verify employees appear in the admin interface.
+
+### Test 3 — Employee authentication
+
+- Log out as administrator.
+- Log in as Employee A.
+- Confirm correct employee dashboard.
+- Refresh the browser.
+- Confirm the session persists.
+- Confirm Employee A cannot access admin endpoints.
+
+### Test 4 — Solo task assignment
+
+- Log in as administrator.
+- Create a solo task.
+- Assign it to Employee A.
+- Log in as Employee A.
+- Confirm the task appears.
+- Refresh.
+- Confirm it remains visible.
+
+### Test 5 — Group task assignment
+
+- Create one group task.
+- Assign it to Employee A and Employee B.
+- Verify only one shared task document exists.
+- Verify two separate taskMembers documents exist.
+- Confirm both employees see the task.
+
+### Test 6 — Independent status updates
+
+- Employee A changes their status.
+- Confirm Employee B's status does not change.
+- Confirm administrator sees Employee A's update.
+- Refresh all sessions and verify persistence.
+
+### Test 7 — Status requests
+
+- Administrator sends a request to both employees.
+- Employee A responds.
+- Employee B responds later.
+- Confirm both responses are independently stored.
+
+### Test 8 — Queries
+
+- Employee A raises a query.
+- Administrator answers it.
+- Employee A sees the answer after refresh.
+- Confirm the query does not automatically complete the task.
+
+### Test 9 — Group communication
+
+- Employee A sends a message.
+- Employee B sees the message.
+- Administrator can view the conversation.
+- Unassigned Employee C cannot access it.
+
+### Test 10 — Submission and approval
+
+- Employee A submits.
+- Confirm Employee B remains unsubmitted.
+- Administrator reviews Employee A's submission.
+- Administrator requests revision.
+- Employee A sees the revision request.
+- Employee A resubmits.
+- Administrator approves.
+- Confirm the final state persists.
+
+### Test 11 — Notifications
+
+- Generate several application events.
+- Confirm correct recipients receive notifications.
+- Mark a notification as read.
+- Refresh.
+- Confirm read state persists.
+- Confirm one employee cannot modify another employee's notifications.
+
+### Test 12 — Deactivation
+
+- Administrator deactivates Employee B.
+- Confirm Employee B cannot access protected application features.
+- Confirm existing historical task records remain intact.
+
+### Test 13 — Cross-device synchronization
+
+Open the application in two separate browser sessions.
+
+Use one as administrator and the other as an employee.
+
+Perform updates in one session.
+
+Confirm the relevant changes appear in the other session through the implemented synchronization mechanism.
+
+### Test 14 — Security
+
+Attempt:
+- Employee accessing admin endpoints.
+- Employee changing another employee's status.
+- Employee approving their own submission.
+- Employee accessing unrelated tasks.
+- Employee reading another employee's notifications.
+- Unauthenticated API requests.
+- Invalid task status transitions.
+
+All unauthorized operations must be rejected.
+
+---
+
+# 27. Firebase Setup Documentation
+
+Create or update a clear FIREBASE_SETUP.md document.
+
+It must explain:
+
+1. Creating or selecting the Firebase project.
+2. Registering the web application.
+3. Enabling Email/Password Authentication.
+4. Configuring the administrator bootstrap.
+5. Configuring Firebase Admin SDK credentials securely.
+6. Enabling Cloud Firestore.
+7. Creating the required database.
+8. Deploying Firestore Security Rules.
+9. Deploying required Firestore indexes.
+10. Configuring environment variables.
+11. Running the application locally.
+12. Verifying Firebase connectivity.
+13. Creating the initial administrator.
+14. Creating the first employee.
+15. Testing authentication and task synchronization.
+16. Deployment requirements.
+
+If Storage is not needed by the existing application, do not enable or integrate it unnecessarily.
+
+Do not integrate FCM in this documentation phase.
+
+---
+
+# 28. Final Definition of Done
+
+The implementation is complete only when:
+
+- The existing frontend is connected to the actual backend.
+- The backend is connected to Firebase.
+- Admin authentication works.
+- Employee creation works.
+- Employee login works.
+- Employee deactivation works.
+- Task creation works.
+- Solo assignment works.
+- Group assignment works.
+- Each employee has independent task progress.
+- Status updates persist.
+- Status requests and responses persist.
+- Queries and replies persist.
+- Group messages persist.
+- Submissions persist.
+- Approvals and revisions work.
+- Notifications persist.
+- Reminder configuration persists.
+- Audit history persists.
+- Admin dashboard metrics use actual records.
+- Employee dashboard metrics use actual records.
+- Cross-session synchronization works as implemented.
+- Role-based security is enforced by the backend.
+- Firestore Security Rules are properly configured.
+- Required indexes are documented.
+- No mock data is being used as authoritative application data.
+- No Firebase secrets are exposed.
+- The application handles refresh, logout, and login correctly.
+- The complete workflow passes practical testing.
+
+---
+
+# 29. Implementation Instructions — Do Not Stop at Planning
+
+Work directly inside the existing project.
+
+Do not return only an architecture explanation or a list of recommendations.
+
+Implement the integration.
+
+Follow this order:
+
+PHASE 1: Inspect existing codebase and map current features.
+
+PHASE 2: Configure Firebase Authentication, Admin SDK, and Firestore.
+
+PHASE 3: Design and implement the Firestore data model, rules, and indexes.
+
+PHASE 4: Implement authentication middleware and role-based authorization.
+
+PHASE 5: Implement employee creation, login, deactivation, and profile retrieval.
+
+PHASE 6: Connect task creation, assignment, group membership, and task editing.
+
+PHASE 7: Connect status updates, blockers, submissions, reviews, and revisions.
+
+PHASE 8: Connect status requests, queries, query messages, and group communication.
+
+PHASE 9: Connect persistent notifications, audit history, and reminder configuration.
+
+PHASE 10: Connect and verify all admin and employee dashboards.
+
+PHASE 11: Test cross-user synchronization, persistence, authorization, and failure handling.
+
+PHASE 12: Create the setup documentation and final technical handover.
+
+You are authorized to inspect, modify, create, and organize ordinary project files and install necessary dependencies.
+
+Do not ask me routine implementation questions. Make sensible engineering decisions based on the existing application and this specification.
+
+However, do not invent Firebase credentials, expose secrets, disable security rules, or perform paid or destructive external actions without authorization.
+
+If a Firebase project setting or credential must be supplied by me, clearly identify the exact setting and explain where it belongs. Continue implementing all independent work that does not require that credential.
+
+If you encounter a conflict between the current codebase and this specification, inspect the existing implementation and preserve the established product behavior wherever possible.
+
+Do not discard existing working code to simplify integration.
+
+Do not claim a feature is working unless you have tested its actual end-to-end behavior.
+
+At completion, provide:
+
+1. What was integrated.
+2. Firestore collection structure.
+3. Authentication architecture.
+4. Backend routes connected.
+5. Security rules and indexes created.
+6. Features successfully tested.
+7. Features that remain incomplete.
+8. Firebase settings or credentials I must configure manually.
+9. Exact instructions for running and deploying the integrated application.
+
+**FINAL INSTRUCTION: Make the existing application a genuinely Firebase-backed, persistent, multi-user organizational task management system. Every relevant action must operate on authoritative cloud data, and every user must see the correct information according to their role and assignment permissions. Do not rebuild the application. Integrate, connect, complete, and verify it.**

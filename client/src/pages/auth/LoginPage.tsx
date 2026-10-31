@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, Eye, EyeOff, Lock, Mail, ArrowRight } from 'lucide-react';
+import { Briefcase, Eye, EyeOff, ShieldCheck, UserCheck, ArrowRight, KeyRound } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -15,42 +15,39 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!email || !password) {
-      setError('Please enter both email and password.');
-      return;
+  // If already authenticated, redirect straight to user's portal
+  useEffect(() => {
+    if (user) {
+      navigate(user.role === 'admin' ? '/admin' : '/employee', { replace: true });
     }
+  }, [user, navigate]);
 
+  const doLogin = async (targetEmail: string, targetPass: string) => {
+    setError(null);
     try {
       setLoading(true);
-      await login(email, password);
-      // Determine redirection based on email prefix or session role
-      if (email.toLowerCase().includes('admin')) {
-        navigate('/admin');
-      } else {
-        navigate('/employee');
-      }
+      const loggedIn = await login(targetEmail, targetPass);
+      navigate(loggedIn.role === 'admin' ? '/admin' : '/employee', { replace: true });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Invalid credentials';
+      const message = err instanceof Error ? err.message : 'Invalid email or password';
       setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const devAccounts = [
-    { role: 'Administrator', name: 'Arihant Sharma', email: 'admin@company.com', pass: 'Admin@2024!' },
-    { role: 'Employee', name: 'Priya Mehta (Engineering)', email: 'priya.mehta@company.com', pass: 'Emp@56789' },
-    { role: 'Employee', name: 'Rahul Gupta (Engineering)', email: 'rahul.gupta@company.com', pass: 'Emp@34512' },
-    { role: 'Employee', name: 'Sneha Patel (Sales)', email: 'sneha.patel@company.com', pass: 'Emp@78234' },
-    { role: 'Employee', name: 'Vikram Nair (Operations)', email: 'vikram.nair@company.com', pass: 'Emp@91823' },
-  ];
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError('Please enter both corporate email and password.');
+      return;
+    }
+    await doLogin(email, password);
+  };
 
-  const fillAccount = (accEmail: string, accPass: string) => {
-    setEmail(accEmail);
-    setPassword(accPass);
+  const fillAdminCredentials = () => {
+    setEmail('admin@company.com');
+    setPassword('Admin@2024!');
     setError(null);
   };
 
@@ -94,7 +91,7 @@ export function LoginPage() {
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
+                  placeholder="Enter your account password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-3 py-2 pr-10 text-sm text-[#172033] bg-white border border-[#E4E8EF] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3157A4] focus:border-[#3157A4] transition-colors"
@@ -121,40 +118,41 @@ export function LoginPage() {
             </Button>
           </form>
 
-          {/* Test Accounts Quick Select */}
-          <div className="mt-8 pt-6 border-t border-[#E4E8EF]">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-[#172033]">Development Test Accounts</span>
-              <span className="text-[10px] text-[#667085] bg-[#F5F7FA] px-2 py-0.5 rounded border border-[#E4E8EF]">
-                Click to Auto-fill
-              </span>
+          {/* Authoritative Single Administrator Credentials Box */}
+          <div className="mt-8 pt-6 border-t border-[#E4E8EF] space-y-3">
+            <div className="p-3.5 rounded-xl border border-[#B8D0F5] bg-[#F4F8FF]">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-[#3157A4]">
+                  <ShieldCheck size={16} />
+                  System Administrator Login
+                </span>
+                <button
+                  type="button"
+                  onClick={fillAdminCredentials}
+                  className="text-[11px] font-semibold text-[#3157A4] hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  <KeyRound size={12} />
+                  Fill Credentials
+                </button>
+              </div>
+              <div className="text-xs text-[#172033] space-y-0.5">
+                <p>
+                  <span className="text-[#667085]">Email:</span>{' '}
+                  <span className="font-mono font-medium">admin@company.com</span>
+                </p>
+                <p>
+                  <span className="text-[#667085]">Password:</span>{' '}
+                  <span className="font-mono font-medium">Admin@2024!</span>
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              {devAccounts.map((acc) => (
-                <button
-                  key={acc.email}
-                  type="button"
-                  onClick={() => fillAccount(acc.email, acc.pass)}
-                  className="w-full text-left p-2.5 rounded-lg border border-[#E4E8EF] hover:border-[#3157A4] hover:bg-[#F9FBFF] transition-all flex items-center justify-between group cursor-pointer"
-                >
-                  <div className="overflow-hidden">
-                    <p className="text-xs font-semibold text-[#172033] group-hover:text-[#3157A4] truncate">
-                      {acc.name}
-                    </p>
-                    <p className="text-[11px] text-[#667085] truncate">{acc.email}</p>
-                  </div>
-                  <span
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                      acc.role === 'Administrator'
-                        ? 'bg-[#EBF3FF] text-[#3157A4] border border-[#B8D0F5]'
-                        : 'bg-[#F5F7FA] text-[#667085] border border-[#E4E8EF]'
-                    }`}
-                  >
-                    {acc.role}
-                  </span>
-                </button>
-              ))}
+            {/* Employee Login Information */}
+            <div className="p-3 rounded-xl border border-[#E4E8EF] bg-[#F9FAFB] flex items-start gap-2.5">
+              <UserCheck size={16} className="text-[#667085] shrink-0 mt-0.5" />
+              <p className="text-[11px] text-[#667085] leading-relaxed">
+                <span className="font-semibold text-[#172033]">Employee Accounts:</span> Created dynamically by the Administrator in the Admin Dashboard. Employees sign in using the email and password assigned to their account.
+              </p>
             </div>
           </div>
         </div>
@@ -162,4 +160,3 @@ export function LoginPage() {
     </div>
   );
 }
-

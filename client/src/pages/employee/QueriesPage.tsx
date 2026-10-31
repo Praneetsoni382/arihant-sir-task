@@ -39,7 +39,10 @@ export function QueriesPage() {
     queryKey: ['query-detail', selectedQueryId],
     queryFn: async () => {
       const res = await queryApi.getById(selectedQueryId!);
-      return res.data?.data as Query;
+      if (!res.data?.data) {
+        throw new Error(res.data?.error || 'Failed to load query detail');
+      }
+      return res.data.data as Query;
     },
     enabled: !!selectedQueryId,
     refetchInterval: 4000,

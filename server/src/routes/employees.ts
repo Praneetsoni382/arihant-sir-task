@@ -3,12 +3,13 @@
 // ============================================================
 
 import { Router } from 'express';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { userRepo, taskRepo, taskMemberRepo, auditRepo, newId } from '../repositories/inMemoryStore.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { createAuditEvent } from '../services/notificationService.js';
+import { adminAuth } from '../firebase.js';
 
 const router = Router();
 
@@ -95,6 +96,19 @@ router.post(
       active: true,
       passwordHash,
     });
+
+    if (adminAuth) {
+      try {
+        await adminAuth.createUser({
+          uid: user.id,
+          email: user.email,
+          password: password,
+          displayName: user.fullName,
+        });
+      } catch (authErr) {
+        console.warn('Firebase Auth user creation notice:', authErr instanceof Error ? authErr.message : authErr);
+      }
+    }
 
     createAuditEvent({
       actorUserId: req.session.userId!,
@@ -193,6 +207,16 @@ router.patch(
     if (!updated) {
       res.status(500).json({ success: false, error: 'Update failed' });
       return;
+    }
+
+    if (adminAuth) {
+      try {
+        await adminAuth.updateUser(user.id, {
+          disabled: !parse.data.active,
+        });
+      } catch (authErr) {
+        console.warn('Firebase Auth user update notice:', authErr instanceof Error ? authErr.message : authErr);
+      }
     }
 
     createAuditEvent({

@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Enterprise Task Management, Status Tracking & Employee Communication Platform",
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm --prefix server run dev",
@@ -12,5 +16,9 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "firebase": "^13.1.0",
+    "firebase-admin": "^14.5.0"
   }
 }

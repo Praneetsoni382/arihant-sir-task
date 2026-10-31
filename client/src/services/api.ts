@@ -4,6 +4,7 @@
 
 import axios from 'axios';
 import type { ApiResponse } from '../types';
+import { auth } from '../firebase';
 
 const api = axios.create({
   baseURL: '/api',
@@ -13,11 +14,31 @@ const api = axios.create({
   },
 });
 
+// Request interceptor: attach Firebase ID token or stored auth token
+api.interceptors.request.use(async (config) => {
+  if (auth.currentUser) {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      config.headers.Authorization = `Bearer ${token}`;
+      return config;
+    } catch {
+      // Continue with stored token
+    }
+  }
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Response interceptor: unwrap data or throw
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
       // Redirect to login if session expired (but not on login page itself)
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';

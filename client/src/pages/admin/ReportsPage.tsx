@@ -58,7 +58,7 @@ export function ReportsPage() {
   });
 
   // Fetch report data
-  const { data: reportData, isLoading, refetch } = useQuery({
+  const { data: reportData, isLoading } = useQuery({
     queryKey: ['reports', department, status, priority, assignmentType, employeeId],
     queryFn: async () => {
       const params: Record<string, string> = {};
@@ -68,7 +68,10 @@ export function ReportsPage() {
       if (assignmentType) params.assignmentType = assignmentType;
       if (employeeId) params.employeeId = employeeId;
       const res = await reportApi.getReport(params);
-      return res.data?.data as { total: number; tasks: ReportTask[]; generatedAt: string };
+      if (!res.data?.data) {
+        throw new Error(res.data?.error || 'Failed to load report data');
+      }
+      return res.data.data as { total: number; tasks: ReportTask[]; generatedAt: string };
     },
   });
 

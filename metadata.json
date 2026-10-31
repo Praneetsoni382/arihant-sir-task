@@ -1,0 +1,8 @@
+{
+  "name": "Enterprise Task Management & Employee Communication Platform",
+  "description": "Comprehensive task assignment, status tracking, query resolution, and employee communication platform.",
+  "request_feedback": false,
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

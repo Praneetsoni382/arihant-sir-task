@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow read, write for all application collections and subcollections
+    match /{document=**} {
+      allow read, write: if true;
+    }
+
+    // Explicit path definitions
+    match /test/connection {
+      allow read, write: if true;
+    }
+
+    match /users/{uid} {
+      allow read, write: if true;
+    }
+
+    match /tasks/{taskId} {
+      allow read, write: if true;
+
+      match /members/{memberUid} {
+        allow read, write: if true;
+      }
+
+      match /messages/{messageId} {
+        allow read, write: if true;
+      }
+    }
+
+    match /taskMembers/{memberId} {
+      allow read, write: if true;
+    }
+
+    match /statusRequests/{requestId} {
+      allow read, write: if true;
+    }
+
+    match /statusResponses/{responseId} {
+      allow read, write: if true;
+    }
+
+    match /queries/{queryId} {
+      allow read, write: if true;
+
+      match /messages/{messageId} {
+        allow read, write: if true;
+      }
+    }
+
+    match /queryMessages/{messageId} {
+      allow read, write: if true;
+    }
+
+    match /chatMessages/{messageId} {
+      allow read, write: if true;
+    }
+
+    match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+
+    match /reminderSettings/{uid} {
+      allow read, write: if true;
+    }
+
+    match /reminderOccurrences/{occurrenceId} {
+      allow read, write: if true;
+    }
+
+    match /auditEvents/{eventId} {
+      allow read, write: if true;
+    }
+  }
+}

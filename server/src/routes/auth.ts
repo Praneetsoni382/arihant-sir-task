@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Router } from 'express';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { userRepo } from '../repositories/inMemoryStore.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -49,8 +49,22 @@ router.post(
     req.session.role = user.role;
     req.session.fullName = user.fullName;
 
-    const { passwordHash: _, ...safeUser } = user;
-    res.json({ success: true, data: safeUser });
+    const token = Buffer.from(
+      JSON.stringify({
+        uid: user.id,
+        role: user.role,
+        exp: Date.now() + 8 * 60 * 60 * 1000,
+      })
+    ).toString('base64');
+
+    req.session.save((err) => {
+      if (err) {
+        res.status(500).json({ success: false, error: 'Failed to establish session' });
+        return;
+      }
+      const { passwordHash: _, ...safeUser } = user;
+      res.json({ success: true, data: safeUser, token });
+    });
   })
 );
 

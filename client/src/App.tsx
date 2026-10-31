@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ProtectedRoute } from './routes/ProtectedRoute';
+import { PageLoader } from './components/ui/LoadingSpinner';
 
 // Auth
 import { LoginPage } from './pages/auth/LoginPage';
@@ -34,6 +35,13 @@ const queryClient = new QueryClient({
   },
 });
 
+function RootRedirect() {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <PageLoader />;
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={user.role === 'admin' ? '/admin' : '/employee'} replace />;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -41,7 +49,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<RootRedirect />} />
 
             {/* Admin Protected Routes */}
             <Route element={<ProtectedRoute allowedRoles={['admin']} />}>

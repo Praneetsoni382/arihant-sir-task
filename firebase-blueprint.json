@@ -1,0 +1,270 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role and organizational credentials",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "employeeId": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["admin", "employee"] },
+        "department": { "type": "string", "maxLength": 128 },
+        "designation": { "type": "string", "maxLength": 128 },
+        "accountStatus": { "type": "string", "enum": ["active", "deactivated"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "createdBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["uid", "employeeId", "name", "email", "role", "accountStatus", "createdAt"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Organizational task assignment",
+      "type": "object",
+      "properties": {
+        "taskId": { "type": "string", "maxLength": 128 },
+        "referenceNumber": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 256 },
+        "description": { "type": "string", "maxLength": 4096 },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "category": { "type": "string", "maxLength": 128 },
+        "department": { "type": "string", "maxLength": 128 },
+        "assignmentType": { "type": "string", "enum": ["solo", "group"] },
+        "assignedBy": { "type": "string", "maxLength": 128 },
+        "assignedEmployeeIds": { "type": "array" },
+        "deadline": { "type": "string" },
+        "startDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in_progress", "submitted_for_review", "approved", "cancelled"] },
+        "taskNote": { "type": "string", "maxLength": 2048 },
+        "reminderEnabled": { "type": "boolean" },
+        "reminderTimes": { "type": "array" },
+        "timezone": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "cancelledAt": { "type": "string" }
+      },
+      "required": ["taskId", "title", "priority", "status", "assignmentType", "deadline", "createdAt"]
+    },
+    "TaskMember": {
+      "title": "TaskMember",
+      "description": "Individual member assignment and progress state for a task",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "employeeId": { "type": "string", "maxLength": 64 },
+        "employeeName": { "type": "string", "maxLength": 128 },
+        "assignedAt": { "type": "string" },
+        "individualStatus": { "type": "string", "enum": ["pending", "in_progress", "blocked", "submitted_for_review", "revision_requested", "approved", "cancelled"] },
+        "submissionNote": { "type": "string", "maxLength": 2048 },
+        "submittedAt": { "type": "string" },
+        "lastStatusUpdatedAt": { "type": "string" },
+        "blockerDescription": { "type": "string", "maxLength": 2048 },
+        "blockerReportedAt": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "approvedBy": { "type": "string", "maxLength": 128 },
+        "revisionRequestedAt": { "type": "string" },
+        "revisionReason": { "type": "string", "maxLength": 2048 },
+        "reminderEligible": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "individualStatus", "assignedAt"]
+    },
+    "StatusRequest": {
+      "title": "StatusRequest",
+      "description": "Manager-to-employee status interrogation request",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string", "maxLength": 128 },
+        "taskId": { "type": "string", "maxLength": 128 },
+        "recipientUserId": { "type": "string", "maxLength": 128 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "question": { "type": "string", "maxLength": 2048 },
+        "requestType": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["pending", "responded", "closed"] },
+        "response": { "type": "string", "maxLength": 4096 },
+        "respondedAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["requestId", "taskId", "recipientUserId", "question", "status", "createdAt"]
+    },
+    "Query": {
+      "title": "Query",
+      "description": "Task-related query or question raised by an employee",
+      "type": "object",
+      "properties": {
+        "queryId": { "type": "string", "maxLength": 128 },
+        "taskId": { "type": "string", "maxLength": 128 },
+        "employeeId": { "type": "string", "maxLength": 64 },
+        "employeeName": { "type": "string", "maxLength": 128 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "description": { "type": "string", "maxLength": 4096 },
+        "category": { "type": "string", "maxLength": 128 },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "status": { "type": "string", "enum": ["open", "answered", "resolved"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "resolvedAt": { "type": "string" },
+        "resolvedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["queryId", "taskId", "createdBy", "title", "description", "status", "createdAt"]
+    },
+    "QueryMessage": {
+      "title": "QueryMessage",
+      "description": "Message thread entry in a query",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string", "maxLength": 128 },
+        "queryId": { "type": "string", "maxLength": 128 },
+        "senderUid": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 128 },
+        "senderRole": { "type": "string", "enum": ["admin", "employee"] },
+        "message": { "type": "string", "maxLength": 4096 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["messageId", "senderUid", "senderRole", "message", "createdAt"]
+    },
+    "TaskMessage": {
+      "title": "TaskMessage",
+      "description": "Collaborative task chat message",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string", "maxLength": 128 },
+        "taskId": { "type": "string", "maxLength": 128 },
+        "senderUid": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 128 },
+        "senderRole": { "type": "string", "enum": ["admin", "employee"] },
+        "message": { "type": "string", "maxLength": 4096 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["messageId", "senderUid", "senderName", "senderRole", "message", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app operational alert or notification",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string", "maxLength": 128 },
+        "recipientUid": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 256 },
+        "message": { "type": "string", "maxLength": 2048 },
+        "relatedTaskId": { "type": "string", "maxLength": 128 },
+        "relatedEntityId": { "type": "string", "maxLength": 128 },
+        "read": { "type": "boolean" },
+        "readAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["notificationId", "recipientUid", "type", "title", "message", "read", "createdAt"]
+    },
+    "ReminderSetting": {
+      "title": "ReminderSetting",
+      "description": "Reminder configuration preferences per user or system",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "enabled": { "type": "boolean" },
+        "reminderTimes": { "type": "array" },
+        "timezone": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "enabled", "timezone"]
+    },
+    "ReminderOccurrence": {
+      "title": "ReminderOccurrence",
+      "description": "Persistent record of evaluated and triggered reminder events",
+      "type": "object",
+      "properties": {
+        "occurrenceId": { "type": "string", "maxLength": 128 },
+        "taskId": { "type": "string", "maxLength": 128 },
+        "recipientUserId": { "type": "string", "maxLength": 128 },
+        "scheduledFor": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "delivered", "skipped"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["occurrenceId", "taskId", "recipientUserId", "scheduledFor", "status", "createdAt"]
+    },
+    "AuditEvent": {
+      "title": "AuditEvent",
+      "description": "Immutable administrative and operational audit trail entry",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "maxLength": 128 },
+        "actorUserId": { "type": "string", "maxLength": 128 },
+        "actorRole": { "type": "string", "maxLength": 64 },
+        "entityType": { "type": "string", "maxLength": 64 },
+        "entityId": { "type": "string", "maxLength": 128 },
+        "eventType": { "type": "string", "maxLength": 64 },
+        "previousState": { "type": "string", "maxLength": 128 },
+        "newState": { "type": "string", "maxLength": 128 },
+        "message": { "type": "string", "maxLength": 2048 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["eventId", "actorUserId", "entityType", "entityId", "eventType", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile collection indexed by Firebase UID"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Tasks collection containing organizational work items"
+    },
+    "/tasks/{taskId}/members/{uid}": {
+      "schema": "TaskMember",
+      "description": "Subcollection of assigned members with individual completion status"
+    },
+    "/tasks/{taskId}/messages/{messageId}": {
+      "schema": "TaskMessage",
+      "description": "Subcollection for task group collaboration messages"
+    },
+    "/statusRequests/{requestId}": {
+      "schema": "StatusRequest",
+      "description": "Collection of status interrogations and responses"
+    },
+    "/queries/{queryId}": {
+      "schema": "Query",
+      "description": "Collection of employee queries and questions"
+    },
+    "/queries/{queryId}/messages/{messageId}": {
+      "schema": "QueryMessage",
+      "description": "Subcollection of message thread replies for a query"
+    },
+    "/taskMembers/{id}": {
+      "schema": "TaskMember",
+      "description": "Task member state and progress collection"
+    },
+    "/statusResponses/{id}": {
+      "schema": "StatusRequest",
+      "description": "Collection of status interrogation responses"
+    },
+    "/queryMessages/{id}": {
+      "schema": "QueryMessage",
+      "description": "Collection of query discussion messages"
+    },
+    "/chatMessages/{id}": {
+      "schema": "TaskMessage",
+      "description": "Collection of task chat collaboration messages"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Collection of targeted user notifications"
+    },
+    "/reminderSettings/{uid}": {
+      "schema": "ReminderSetting",
+      "description": "User reminder configurations"
+    },
+    "/reminderOccurrences/{occurrenceId}": {
+      "schema": "ReminderOccurrence",
+      "description": "Persistent log of reminder evaluations"
+    },
+    "/auditEvents/{eventId}": {
+      "schema": "AuditEvent",
+      "description": "System-wide immutable audit trail"
+    }
+  }
+}

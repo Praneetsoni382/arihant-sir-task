@@ -25,6 +25,9 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 
 const app = express();
 
+// Enable trust proxy for reverse proxies in AI Studio environment
+app.set('trust proxy', 1);
+
 // ============================================================
 // SECURITY & MIDDLEWARE
 // ============================================================
@@ -37,7 +40,7 @@ app.use(
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -57,8 +60,8 @@ app.use(
     name: 'tid',
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      secure: false,
+      sameSite: 'lax',
       maxAge: 8 * 60 * 60 * 1000, // 8 hours
     },
   })

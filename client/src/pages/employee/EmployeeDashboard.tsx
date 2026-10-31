@@ -40,7 +40,10 @@ export function EmployeeDashboard() {
     queryKey: ['employee-dashboard'],
     queryFn: async () => {
       const res = await dashboardApi.employee();
-      return res.data?.data as EmployeeDashboardData;
+      if (!res.data?.data) {
+        throw new Error(res.data?.error || 'Failed to load employee dashboard data');
+      }
+      return res.data.data as EmployeeDashboardData;
     },
     refetchInterval: 15000,
   });

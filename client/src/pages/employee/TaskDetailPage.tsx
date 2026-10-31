@@ -65,7 +65,10 @@ export function TaskDetailPage() {
     queryKey: ['employee-task-detail', id],
     queryFn: async () => {
       const res = await taskApi.getById(id!);
-      return res.data?.data as TaskWithMembers;
+      if (!res.data?.data) {
+        throw new Error(res.data?.error || 'Failed to load task details');
+      }
+      return res.data.data as TaskWithMembers;
     },
     enabled: !!id,
     refetchInterval: 10000,

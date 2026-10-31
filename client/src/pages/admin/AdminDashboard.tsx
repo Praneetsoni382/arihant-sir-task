@@ -28,7 +28,10 @@ export function AdminDashboard() {
     queryKey: ['admin-dashboard'],
     queryFn: async () => {
       const res = await dashboardApi.admin();
-      return res.data?.data as AdminDashboardData;
+      if (!res.data?.data) {
+        throw new Error(res.data?.error || 'Failed to load admin dashboard data');
+      }
+      return res.data.data as AdminDashboardData;
     },
     refetchInterval: 20000,
   });

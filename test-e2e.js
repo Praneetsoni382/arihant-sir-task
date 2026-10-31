@@ -79,7 +79,7 @@ async function runScenario() {
   console.log('🚀 EXECUTING SECTION 24 MANDATORY E2E TEST SCENARIO');
   console.log('====================================================\n');
 
-  await seedStore();
+  await seedStore(true);
   await new Promise((resolve) => {
     server = app.listen(PORT, resolve);
   });

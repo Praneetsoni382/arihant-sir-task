@@ -8,7 +8,10 @@
 // ============================================================
 
 import { v4 as uuidv4 } from 'uuid';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
+import { firestoreDb } from '../firebase.js';
 import type {
   User,
   Task,
@@ -57,11 +60,35 @@ const store: Store = {
   taskCounter: 1000,
 };
 
+// Persistence path
+const dataDir = path.resolve(process.cwd(), '.data');
+const snapshotPath = path.resolve(dataDir, 'app-store.json');
+
+function persistSnapshot(): void {
+  try {
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    fs.writeFileSync(snapshotPath, JSON.stringify(store, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('⚠️ Could not save local store snapshot:', err);
+  }
+}
+
+async function syncToFirestore(collection: string, docId: string, data: any): Promise<void> {
+  try {
+    await firestoreDb.docSet(collection, docId, data);
+  } catch (err) {
+    console.warn(`Firestore sync notice (${collection}/${docId}):`, err instanceof Error ? err.message : err);
+  }
+}
+
 // ============================================================
 // HELPER: Generate task reference number
 // ============================================================
 export function nextTaskRef(): string {
   store.taskCounter += 1;
+  persistSnapshot();
   return `TK-${store.taskCounter}`;
 }
 
@@ -73,22 +100,101 @@ export function newId(): string {
 // SEED DATA
 // ============================================================
 
-export async function seedStore(): Promise<void> {
-  const now = new Date().toISOString();
+export async function seedStore(forceReset = false): Promise<void> {
+  if (forceReset) {
+    store.users = [];
+    store.tasks = [];
+    store.taskMembers = [];
+    store.statusRequests = [];
+    store.statusResponses = [];
+    store.queries = [];
+    store.queryMessages = [];
+    store.chatMessages = [];
+    store.notifications = [];
+    store.auditEvents = [];
+    store.reminderOccurrences = [];
+    store.taskCounter = 1000;
+  }
 
+  // 1. Try to load authoritative records from Firestore if available
+  if (!forceReset) {
+    try {
+      const usersData = await firestoreDb.collectionGetAll('users');
+      if (usersData && usersData.length > 0) {
+        console.log(`🔥 Synchronizing authoritative users from Cloud Firestore...`);
+        // Purge dummy demo users from Firestore load
+        const demoEmails = ['priya.mehta@company.com', 'rahul.gupta@company.com', 'sneha.patel@company.com', 'vikram.nair@company.com'];
+        store.users = (usersData as User[])
+          .filter((u) => u && u.email && u.id && !demoEmails.includes(u.email) && !u.id.startsWith('usr-emp-'));
+
+        const tasksData = await firestoreDb.collectionGetAll('tasks');
+        store.tasks = (tasksData as Task[])
+          .filter((t) => t && t.id && !t.id.startsWith('task-demo-'));
+
+        const membersData = await firestoreDb.collectionGetAll('taskMembers');
+        store.taskMembers = (membersData as TaskMember[])
+          .filter((m) => m && m.id && !m.id.startsWith('tm-'));
+
+        const srData = await firestoreDb.collectionGetAll('statusRequests');
+        store.statusRequests = srData as StatusRequest[];
+
+        const queriesData = await firestoreDb.collectionGetAll('queries');
+        store.queries = queriesData as Query[];
+
+        const notifData = await firestoreDb.collectionGetAll('notifications');
+        store.notifications = notifData as Notification[];
+
+        const auditData = await firestoreDb.collectionGetAll('auditEvents');
+        if (auditData.length > 0) {
+          store.auditEvents = auditData as AuditEvent[];
+        }
+
+        // Ensure single admin exists
+        const hasAdmin = store.users.some((u) => u.role === 'admin' && u.email === 'admin@company.com');
+        if (hasAdmin) {
+          persistSnapshot();
+          console.log(`✅ Loaded ${store.users.length} active users and ${store.tasks.length} tasks from Cloud Firestore.`);
+          return;
+        }
+      }
+    } catch (fsErr) {
+      console.warn('ℹ️ Firestore read notice:', fsErr instanceof Error ? fsErr.message : fsErr);
+    }
+  }
+
+  // 2. Try to restore from persistent disk snapshot
+  if (!forceReset && fs.existsSync(snapshotPath)) {
+    try {
+      const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+      if (snapshot.users && snapshot.users.length > 0) {
+        const demoEmails = ['priya.mehta@company.com', 'rahul.gupta@company.com', 'sneha.patel@company.com', 'vikram.nair@company.com'];
+        snapshot.users = snapshot.users.filter((u: User) => !demoEmails.includes(u.email) && !u.id.startsWith('usr-emp-'));
+        snapshot.tasks = (snapshot.tasks || []).filter((t: Task) => !t.id.startsWith('task-demo-'));
+        snapshot.taskMembers = (snapshot.taskMembers || []).filter((m: TaskMember) => !m.id.startsWith('tm-'));
+        Object.assign(store, snapshot);
+        
+        const hasAdmin = store.users.some((u) => u.role === 'admin' && u.email === 'admin@company.com');
+        if (hasAdmin) {
+          console.log(`📦 Restored ${store.users.length} users and ${store.tasks.length} tasks from local persistence.`);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not read snapshot file, falling back to seed');
+    }
+  }
+
+  // 3. Initial Seed: Single Authoritative Administrator Account Only
+  const now = new Date().toISOString();
   const adminHash = await bcrypt.hash('Admin@2024!', 10);
-  const emp1Hash = await bcrypt.hash('Emp@56789', 10);
-  const emp2Hash = await bcrypt.hash('Emp@34512', 10);
-  const emp3Hash = await bcrypt.hash('Emp@78234', 10);
-  const emp4Hash = await bcrypt.hash('Emp@91823', 10);
 
   const admin: User = {
     id: 'usr-admin-001',
     employeeId: 'ADM-001',
-    fullName: 'Arihant Sharma',
+    fullName: 'System Administrator',
     email: 'admin@company.com',
     department: 'Administration',
-    designation: 'System Administrator',
+    designation: 'Administrator',
     role: 'admin',
     active: true,
     passwordHash: adminHash,
@@ -96,249 +202,26 @@ export async function seedStore(): Promise<void> {
     updatedAt: now,
   };
 
-  const emp1: User = {
-    id: 'usr-emp-001',
-    employeeId: 'EMP-001',
-    fullName: 'Priya Mehta',
-    email: 'priya.mehta@company.com',
-    department: 'Engineering',
-    designation: 'Software Engineer',
-    role: 'employee',
-    active: true,
-    passwordHash: emp1Hash,
-    createdAt: now,
-    updatedAt: now,
-  };
+  store.users = [admin];
+  store.tasks = [];
+  store.taskMembers = [];
+  store.statusRequests = [];
+  store.statusResponses = [];
+  store.queries = [];
+  store.queryMessages = [];
+  store.chatMessages = [];
+  store.notifications = [];
+  store.auditEvents = [];
+  store.reminderOccurrences = [];
+  store.taskCounter = 1000;
 
-  const emp2: User = {
-    id: 'usr-emp-002',
-    employeeId: 'EMP-002',
-    fullName: 'Rahul Gupta',
-    email: 'rahul.gupta@company.com',
-    department: 'Engineering',
-    designation: 'Senior Developer',
-    role: 'employee',
-    active: true,
-    passwordHash: emp2Hash,
-    createdAt: now,
-    updatedAt: now,
-  };
+  // Persist snapshot to disk
+  persistSnapshot();
 
-  const emp3: User = {
-    id: 'usr-emp-003',
-    employeeId: 'EMP-003',
-    fullName: 'Sneha Patel',
-    email: 'sneha.patel@company.com',
-    department: 'Sales',
-    designation: 'Sales Executive',
-    role: 'employee',
-    active: true,
-    passwordHash: emp3Hash,
-    createdAt: now,
-    updatedAt: now,
-  };
+  // Sync the single authoritative administrator to Firestore
+  syncToFirestore('users', admin.id, admin);
 
-  const emp4: User = {
-    id: 'usr-emp-004',
-    employeeId: 'EMP-004',
-    fullName: 'Vikram Nair',
-    email: 'vikram.nair@company.com',
-    department: 'Operations',
-    designation: 'Operations Manager',
-    role: 'employee',
-    active: true,
-    passwordHash: emp4Hash,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  store.users.push(admin, emp1, emp2, emp3, emp4);
-
-  // Seed a few demo tasks
-  const task1Id = 'task-demo-001';
-  const task2Id = 'task-demo-002';
-  const task3Id = 'task-demo-003';
-
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 2);
-
-  const nextWeek = new Date();
-  nextWeek.setDate(nextWeek.getDate() + 7);
-
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  const task1: Task = {
-    id: task1Id,
-    referenceNumber: 'TK-1001',
-    title: 'Implement User Authentication Module',
-    description:
-      'Design and implement secure JWT-based authentication with role-based access control for the main application.',
-    assignmentType: 'solo',
-    priority: 'high',
-    status: 'in_progress',
-    category: 'Development',
-    department: 'Engineering',
-    deadline: nextWeek.toISOString(),
-    startDate: now,
-    timezone: 'Asia/Kolkata',
-    reminderEnabled: true,
-    reminderTimes: ['12:00', '15:00'],
-    managerNote: 'Follow the security guidelines in the internal wiki.',
-    createdBy: 'usr-admin-001',
-    createdAt: now,
-    updatedAt: now,
-    cancelledAt: null,
-  };
-  store.taskCounter = 1001;
-
-  const task2: Task = {
-    id: task2Id,
-    referenceNumber: 'TK-1002',
-    title: 'Q4 Sales Target Report',
-    description:
-      'Compile and analyze Q4 sales data, prepare presentation for board meeting.',
-    assignmentType: 'solo',
-    priority: 'critical',
-    status: 'pending',
-    category: 'Reporting',
-    department: 'Sales',
-    deadline: tomorrow.toISOString(),
-    startDate: null,
-    timezone: 'Asia/Kolkata',
-    reminderEnabled: true,
-    reminderTimes: ['09:00', '14:00'],
-    managerNote: '',
-    createdBy: 'usr-admin-001',
-    createdAt: now,
-    updatedAt: now,
-    cancelledAt: null,
-  };
-  store.taskCounter = 1002;
-
-  const task3: Task = {
-    id: task3Id,
-    referenceNumber: 'TK-1003',
-    title: 'Platform Feature Roadmap Planning',
-    description:
-      'Collaborate on defining the next quarter feature roadmap based on customer feedback and strategic priorities.',
-    assignmentType: 'group',
-    priority: 'medium',
-    status: 'in_progress',
-    category: 'Planning',
-    department: 'Engineering',
-    deadline: nextWeek.toISOString(),
-    startDate: now,
-    timezone: 'Asia/Kolkata',
-    reminderEnabled: true,
-    reminderTimes: ['12:00', '15:00'],
-    managerNote: 'Coordinate with product team.',
-    createdBy: 'usr-admin-001',
-    createdAt: now,
-    updatedAt: now,
-    cancelledAt: null,
-  };
-  store.taskCounter = 1003;
-
-  store.tasks.push(task1, task2, task3);
-
-  // Task members
-  const member1: TaskMember = {
-    id: 'tm-001',
-    taskId: task1Id,
-    userId: 'usr-emp-001',
-    memberStatus: 'in_progress',
-    submissionNote: '',
-    submittedAt: null,
-    approvedAt: null,
-    revisionRequestedAt: null,
-    revisionReason: '',
-    lastStatusUpdateAt: now,
-    reminderEligible: true,
-  };
-
-  const member2: TaskMember = {
-    id: 'tm-002',
-    taskId: task2Id,
-    userId: 'usr-emp-003',
-    memberStatus: 'pending',
-    submissionNote: '',
-    submittedAt: null,
-    approvedAt: null,
-    revisionRequestedAt: null,
-    revisionReason: '',
-    lastStatusUpdateAt: now,
-    reminderEligible: true,
-  };
-
-  const member3: TaskMember = {
-    id: 'tm-003',
-    taskId: task3Id,
-    userId: 'usr-emp-001',
-    memberStatus: 'in_progress',
-    submissionNote: '',
-    submittedAt: null,
-    approvedAt: null,
-    revisionRequestedAt: null,
-    revisionReason: '',
-    lastStatusUpdateAt: now,
-    reminderEligible: true,
-  };
-
-  const member4: TaskMember = {
-    id: 'tm-004',
-    taskId: task3Id,
-    userId: 'usr-emp-002',
-    memberStatus: 'pending',
-    submissionNote: '',
-    submittedAt: null,
-    approvedAt: null,
-    revisionRequestedAt: null,
-    revisionReason: '',
-    lastStatusUpdateAt: now,
-    reminderEligible: true,
-  };
-
-  store.taskMembers.push(member1, member2, member3, member4);
-
-  // Seed audit events
-  store.auditEvents.push(
-    {
-      id: newId(),
-      actorUserId: 'usr-admin-001',
-      entityType: 'task',
-      entityId: task1Id,
-      eventType: 'TASK_CREATED',
-      previousState: null,
-      newState: 'pending',
-      message: 'Task created and assigned to Priya Mehta',
-      createdAt: now,
-    },
-    {
-      id: newId(),
-      actorUserId: 'usr-admin-001',
-      entityType: 'task',
-      entityId: task2Id,
-      eventType: 'TASK_CREATED',
-      previousState: null,
-      newState: 'pending',
-      message: 'Task created and assigned to Sneha Patel',
-      createdAt: now,
-    },
-    {
-      id: newId(),
-      actorUserId: 'usr-admin-001',
-      entityType: 'task',
-      entityId: task3Id,
-      eventType: 'TASK_CREATED',
-      previousState: null,
-      newState: 'pending',
-      message: 'Group task created and assigned to Priya Mehta, Rahul Gupta',
-      createdAt: now,
-    }
-  );
-
-  console.log('[Seed] In-memory store populated with demo data.');
+  console.log('[Seed] Database initialized with single Administrator account (admin@company.com). All dummy data purged.');
 }
 
 // ============================================================
@@ -362,12 +245,16 @@ export const userRepo = {
     const now = new Date().toISOString();
     const user: User = { ...data, id: newId(), createdAt: now, updatedAt: now };
     store.users.push(user);
+    persistSnapshot();
+    syncToFirestore('users', user.id, user);
     return user;
   },
   update(id: string, data: Partial<User>): User | undefined {
     const idx = store.users.findIndex((u) => u.id === id);
     if (idx === -1) return undefined;
     store.users[idx] = { ...store.users[idx], ...data, updatedAt: new Date().toISOString() };
+    persistSnapshot();
+    syncToFirestore('users', id, store.users[idx]);
     return store.users[idx];
   },
 };
@@ -393,12 +280,16 @@ export const taskRepo = {
     const now = new Date().toISOString();
     const task: Task = { ...data, id: newId(), createdAt: now, updatedAt: now };
     store.tasks.push(task);
+    persistSnapshot();
+    syncToFirestore('tasks', task.id, task);
     return task;
   },
   update(id: string, data: Partial<Task>): Task | undefined {
     const idx = store.tasks.findIndex((t) => t.id === id);
     if (idx === -1) return undefined;
     store.tasks[idx] = { ...store.tasks[idx], ...data, updatedAt: new Date().toISOString() };
+    persistSnapshot();
+    syncToFirestore('tasks', id, store.tasks[idx]);
     return store.tasks[idx];
   },
 };
@@ -423,12 +314,18 @@ export const taskMemberRepo = {
   create(data: Omit<TaskMember, 'id'>): TaskMember {
     const member: TaskMember = { ...data, id: newId() };
     store.taskMembers.push(member);
+    persistSnapshot();
+    syncToFirestore('taskMembers', member.id, member);
+    syncToFirestore(`tasks/${member.taskId}/members`, member.id, member);
     return member;
   },
   update(id: string, data: Partial<TaskMember>): TaskMember | undefined {
     const idx = store.taskMembers.findIndex((tm) => tm.id === id);
     if (idx === -1) return undefined;
     store.taskMembers[idx] = { ...store.taskMembers[idx], ...data };
+    persistSnapshot();
+    syncToFirestore('taskMembers', id, store.taskMembers[idx]);
+    syncToFirestore(`tasks/${store.taskMembers[idx].taskId}/members`, id, store.taskMembers[idx]);
     return store.taskMembers[idx];
   },
 };
@@ -453,12 +350,16 @@ export const statusRequestRepo = {
   create(data: Omit<StatusRequest, 'id'>): StatusRequest {
     const sr: StatusRequest = { ...data, id: newId() };
     store.statusRequests.push(sr);
+    persistSnapshot();
+    syncToFirestore('statusRequests', sr.id, sr);
     return sr;
   },
   update(id: string, data: Partial<StatusRequest>): StatusRequest | undefined {
     const idx = store.statusRequests.findIndex((sr) => sr.id === id);
     if (idx === -1) return undefined;
     store.statusRequests[idx] = { ...store.statusRequests[idx], ...data };
+    persistSnapshot();
+    syncToFirestore('statusRequests', id, store.statusRequests[idx]);
     return store.statusRequests[idx];
   },
 };
@@ -477,6 +378,8 @@ export const statusResponseRepo = {
   create(data: Omit<StatusResponse, 'id'>): StatusResponse {
     const sr: StatusResponse = { ...data, id: newId() };
     store.statusResponses.push(sr);
+    persistSnapshot();
+    syncToFirestore('statusResponses', sr.id, sr);
     return sr;
   },
 };
@@ -502,12 +405,16 @@ export const queryRepo = {
     const now = new Date().toISOString();
     const query: Query = { ...data, id: newId(), createdAt: now, updatedAt: now };
     store.queries.push(query);
+    persistSnapshot();
+    syncToFirestore('queries', query.id, query);
     return query;
   },
   update(id: string, data: Partial<Query>): Query | undefined {
     const idx = store.queries.findIndex((q) => q.id === id);
     if (idx === -1) return undefined;
     store.queries[idx] = { ...store.queries[idx], ...data, updatedAt: new Date().toISOString() };
+    persistSnapshot();
+    syncToFirestore('queries', id, store.queries[idx]);
     return store.queries[idx];
   },
 };
@@ -525,6 +432,9 @@ export const queryMessageRepo = {
   create(data: Omit<QueryMessage, 'id'>): QueryMessage {
     const qm: QueryMessage = { ...data, id: newId() };
     store.queryMessages.push(qm);
+    persistSnapshot();
+    syncToFirestore('queryMessages', qm.id, qm);
+    syncToFirestore(`queries/${qm.queryId}/messages`, qm.id, qm);
     return qm;
   },
 };
@@ -542,6 +452,9 @@ export const chatMessageRepo = {
   create(data: Omit<ChatMessage, 'id'>): ChatMessage {
     const cm: ChatMessage = { ...data, id: newId() };
     store.chatMessages.push(cm);
+    persistSnapshot();
+    syncToFirestore('chatMessages', cm.id, cm);
+    syncToFirestore(`tasks/${cm.taskId}/messages`, cm.id, cm);
     return cm;
   },
 };
@@ -562,12 +475,16 @@ export const notificationRepo = {
   create(data: Omit<Notification, 'id'>): Notification {
     const n: Notification = { ...data, id: newId() };
     store.notifications.push(n);
+    persistSnapshot();
+    syncToFirestore('notifications', n.id, n);
     return n;
   },
   update(id: string, data: Partial<Notification>): Notification | undefined {
     const idx = store.notifications.findIndex((n) => n.id === id);
     if (idx === -1) return undefined;
     store.notifications[idx] = { ...store.notifications[idx], ...data };
+    persistSnapshot();
+    syncToFirestore('notifications', id, store.notifications[idx]);
     return store.notifications[idx];
   },
   markAllRead(userId: string): void {
@@ -577,7 +494,9 @@ export const notificationRepo = {
       .forEach((n) => {
         n.readAt = now;
         n.deliveryState = 'read';
+        syncToFirestore('notifications', n.id, n);
       });
+    persistSnapshot();
   },
 };
 
@@ -597,6 +516,8 @@ export const auditRepo = {
   create(data: Omit<AuditEvent, 'id'>): AuditEvent {
     const event: AuditEvent = { ...data, id: newId() };
     store.auditEvents.push(event);
+    persistSnapshot();
+    syncToFirestore('auditEvents', event.id, event);
     return event;
   },
 };
@@ -617,12 +538,16 @@ export const reminderRepo = {
   create(data: Omit<ReminderOccurrence, 'id'>): ReminderOccurrence {
     const r: ReminderOccurrence = { ...data, id: newId() };
     store.reminderOccurrences.push(r);
+    persistSnapshot();
+    syncToFirestore('reminderOccurrences', r.id, r);
     return r;
   },
   update(id: string, data: Partial<ReminderOccurrence>): ReminderOccurrence | undefined {
     const idx = store.reminderOccurrences.findIndex((r) => r.id === id);
     if (idx === -1) return undefined;
     store.reminderOccurrences[idx] = { ...store.reminderOccurrences[idx], ...data };
+    persistSnapshot();
+    syncToFirestore('reminderOccurrences', id, store.reminderOccurrences[idx]);
     return store.reminderOccurrences[idx];
   },
 };

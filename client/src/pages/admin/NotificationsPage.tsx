@@ -26,8 +26,12 @@ export function NotificationsPage() {
   const { data: notifData, isLoading } = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => {
-      const res = await notificationApi.getAll();
-      return res.data?.data as { notifications: Notification[]; unreadCount: number };
+      try {
+        const res = await notificationApi.getAll();
+        return (res.data?.data as { notifications: Notification[]; unreadCount: number }) || { notifications: [], unreadCount: 0 };
+      } catch {
+        return { notifications: [], unreadCount: 0 };
+      }
     },
     refetchInterval: 10000,
   });

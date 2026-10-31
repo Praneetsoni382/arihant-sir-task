@@ -13,13 +13,12 @@ async function start() {
       console.log(`\n🚀 Task Management Platform API`);
       console.log(`   Server running on http://localhost:${PORT}`);
       console.log(`   Health check: http://localhost:${PORT}/api/health`);
-      console.log(`\n📋 Development Accounts:`);
-      console.log(`   Admin:      admin@company.com   / Admin@2024!`);
-      console.log(`   Employee 1: priya.mehta@company.com   / Emp@56789`);
-      console.log(`   Employee 2: rahul.gupta@company.com   / Emp@34512`);
-      console.log(`   Employee 3: sneha.patel@company.com   / Emp@78234`);
-      console.log(`   Employee 4: vikram.nair@company.com   / Emp@91823`);
-      console.log(`\n⚠️  Data resets on server restart (development mode)\n`);
+      console.log(`\n👑 System Administrator Account:`);
+      console.log(`   Email:      admin@company.com`);
+      console.log(`   Password:   Admin@2024!`);
+      console.log(`\n👥 Employee Accounts:`);
+      console.log(`   Create employees dynamically in the Admin Dashboard (/admin/employees)`);
+      console.log(`   Employees log in using the exact email and password assigned to them.\n`);
     });
   } catch (err) {
     console.error('Failed to start server:', err);
