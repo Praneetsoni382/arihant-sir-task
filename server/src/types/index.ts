@@ -121,6 +121,7 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   cancelledAt: string | null;
+  meetingId?: string | null;
 }
 
 export interface TaskMember {
@@ -146,6 +147,7 @@ export interface StatusRequest {
   status: StatusRequestStatus;
   createdAt: string;
   responseDeadline: string | null;
+  meetingId?: string | null;
 }
 
 export interface StatusResponse {

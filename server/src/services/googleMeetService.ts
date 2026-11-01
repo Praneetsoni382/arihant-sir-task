@@ -142,6 +142,12 @@ export async function createGoogleMeetSpace(
   requestId?: string
 ): Promise<GoogleMeetSpaceResult> {
   let token = customAccessToken || (await getValidAccessToken(userId));
+  if (!token || token.startsWith('manual_')) {
+    const allTokens = googleAuthRepo.getAllTokens();
+    if (allTokens.length > 0 && allTokens[0].accessToken && !allTokens[0].accessToken.startsWith('manual_')) {
+      token = allTokens[0].accessToken;
+    }
+  }
 
   if (token && !token.startsWith('manual_')) {
     // Official Google Meet REST API Call: POST https://meet.googleapis.com/v2/spaces

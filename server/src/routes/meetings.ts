@@ -151,13 +151,25 @@ router.post(
       return;
     }
 
-    // Check if meeting already exists
-    let existingMeeting = meetingRepo.findByStatusRequest(requestId);
+    // Check if meeting already exists via statusRequest.meetingId, task.meetingId, or repository
+    let existingMeeting: any = null;
+    if (sr.meetingId) {
+      existingMeeting = meetingRepo.findById(sr.meetingId);
+    }
+    if (!existingMeeting && task.meetingId) {
+      existingMeeting = meetingRepo.findById(task.meetingId);
+    }
+    if (!existingMeeting) {
+      existingMeeting = meetingRepo.findByStatusRequest(requestId);
+    }
     if (!existingMeeting) {
       existingMeeting = await meetingRepo.fetchFromCloudByStatusRequest(requestId);
     }
 
     if (existingMeeting) {
+      // Ensure meetingId is synced on sr and task
+      if (!sr.meetingId) await statusRequestRepo.update(sr.id, { meetingId: existingMeeting.id });
+      if (!task.meetingId) await taskRepo.update(task.id, { meetingId: existingMeeting.id });
       res.status(200).json({ success: true, data: existingMeeting });
       return;
     }
@@ -178,6 +190,10 @@ router.post(
       status: 'draft',
       timezone: 'Asia/Kolkata',
     });
+
+    // Store meetingId on status request and task document for consistent resolution across all participants
+    await statusRequestRepo.update(sr.id, { meetingId: newMeeting.id });
+    await taskRepo.update(task.id, { meetingId: newMeeting.id });
 
     await createAuditEvent({
       actorUserId: req.session.userId!,
@@ -420,7 +436,19 @@ router.get(
       return;
     }
 
-    let meeting = meetingRepo.findByStatusRequest(requestId);
+    const task = taskRepo.findById(sr.taskId);
+
+    // Retrieve meeting using stored meetingId from task or statusRequest document, ensuring consistent resolution across participants
+    let meeting: any = null;
+    if (sr.meetingId) {
+      meeting = meetingRepo.findById(sr.meetingId);
+    }
+    if (!meeting && task && task.meetingId) {
+      meeting = meetingRepo.findById(task.meetingId);
+    }
+    if (!meeting) {
+      meeting = meetingRepo.findByStatusRequest(requestId);
+    }
     if (!meeting) {
       meeting = await meetingRepo.fetchFromCloudByStatusRequest(requestId);
     }
