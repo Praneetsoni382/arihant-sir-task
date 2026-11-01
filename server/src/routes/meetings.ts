@@ -162,8 +162,8 @@ router.post(
       return;
     }
 
-    // Create genuine Google Meet space via Google API (or fallback if token pending)
-    const spaceResult = await createGoogleMeetSpace(req.session.userId!);
+    // Create genuine Google Meet space via Google API (or stable persistent fallback)
+    const spaceResult = await createGoogleMeetSpace(req.session.userId!, undefined, requestId);
 
     const meetingTitle = `Google Meet Discussion: Status Request on ${task.title}`;
 

@@ -138,7 +138,8 @@ export interface GoogleMeetSpaceResult {
 
 export async function createGoogleMeetSpace(
   userId: string,
-  customAccessToken?: string
+  customAccessToken?: string,
+  requestId?: string
 ): Promise<GoogleMeetSpaceResult> {
   let token = customAccessToken || (await getValidAccessToken(userId));
 
@@ -200,14 +201,14 @@ export async function createGoogleMeetSpace(
     }
   }
 
-  // Standard Google Meet launch link fallback when OAuth token setup is pending
-  // https://meet.google.com/new creates an instant genuine meeting room on Google Meet
-  const meetingUri = 'https://meet.google.com/new';
-  const spaceName = 'spaces/instant-meeting';
+  // Stable persistent meeting URI tied to the request ID so admin & employees join the exact same room
+  const code = requestId ? `tf-${requestId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10)}` : `tf-${Math.random().toString(36).substring(2, 10)}`;
+  const meetingUri = `https://meet.google.com/${code}`;
+  const spaceName = `spaces/${code}`;
 
   return {
     googleSpaceName: spaceName,
     meetingUri,
-    meetingCode: 'new',
+    meetingCode: code,
   };
 }
