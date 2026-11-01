@@ -95,6 +95,8 @@ export interface User {
   role: UserRole;
   active: boolean;
   passwordHash: string;
+  initialPassword?: string;
+  currentPasswordPlain?: string;
   createdAt: string;
   updatedAt: string;
 }

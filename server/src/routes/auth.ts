@@ -94,6 +94,66 @@ router.post('/logout', (req, res) => {
   });
 });
 
+import { adminAuth } from '../firebase.js';
+import { createAuditEvent } from '../services/notificationService.js';
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters long'),
+});
+
+// POST /api/auth/change-password
+router.post(
+  '/change-password',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const parse = changePasswordSchema.safeParse(req.body);
+    if (!parse.success) {
+      res.status(400).json({ success: false, error: parse.error.errors[0].message });
+      return;
+    }
+
+    const { currentPassword, newPassword } = parse.data;
+    const user = userRepo.findById(req.session.userId!);
+    if (!user) {
+      res.status(404).json({ success: false, error: 'User not found' });
+      return;
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      res.status(400).json({ success: false, error: 'Current password is incorrect' });
+      return;
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    const updatedUser = await userRepo.update(user.id, {
+      passwordHash: newHash,
+      currentPasswordPlain: newPassword,
+    });
+
+    if (adminAuth) {
+      try {
+        await adminAuth.updateUser(user.id, {
+          password: newPassword,
+        });
+      } catch (authErr) {
+        console.warn('Firebase Auth password update notice:', authErr instanceof Error ? authErr.message : authErr);
+      }
+    }
+
+    await createAuditEvent({
+      actorUserId: user.id,
+      entityType: 'user',
+      entityId: user.id,
+      eventType: 'EMPLOYEE_UPDATED',
+      message: `Password changed for user ${user.fullName} (${user.email})`,
+    });
+
+    res.json({ success: true, message: 'Password updated successfully' });
+  })
+);
+
 // GET /api/auth/me
 router.get(
   '/me',

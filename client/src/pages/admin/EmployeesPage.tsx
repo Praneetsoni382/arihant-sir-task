@@ -7,6 +7,7 @@ import {
   XCircle,
   Edit2,
   Power,
+  Download,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Card } from '../../components/ui/Card';
@@ -25,6 +26,7 @@ export function EmployeesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
 
   // Modals
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -41,6 +43,17 @@ export function EmployeesPage() {
     password: '',
   });
   const [formError, setFormError] = useState<string | null>(null);
+
+  const handleExportCsv = async () => {
+    try {
+      setIsExporting(true);
+      await employeeApi.exportCsv();
+    } catch (err) {
+      console.error('Failed to export employee CSV:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Fetch employees
   const { data: employees = [], isLoading } = useQuery({
@@ -185,12 +198,18 @@ export function EmployeesPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E4E8EF]">
           <div>
             <h1 className="text-xl font-bold text-[#172033]">Organizational Employees</h1>
-            <p className="text-xs text-[#667085] mt-0.5">Manage personnel profiles, roles, departments, and account active state</p>
+            <p className="text-xs text-[#667085] mt-0.5">Manage personnel profiles, roles, departments, and credentials export</p>
           </div>
-          <Button onClick={handleOpenCreate} size="sm">
-            <UserPlus size={16} />
-            Add Employee
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleExportCsv} disabled={isExporting} size="sm">
+              <Download size={16} />
+              {isExporting ? 'Exporting CSV...' : 'Export Employee CSV'}
+            </Button>
+            <Button onClick={handleOpenCreate} size="sm">
+              <UserPlus size={16} />
+              Add Employee
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}

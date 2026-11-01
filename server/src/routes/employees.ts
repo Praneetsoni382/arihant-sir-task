@@ -62,6 +62,31 @@ router.get(
   })
 );
 
+// GET /api/employees/export-csv (Admin ONLY)
+router.get(
+  '/export-csv',
+  requireAdmin,
+  asyncHandler(async (_req, res) => {
+    const allUsers = userRepo.findAll();
+    const employees = allUsers.filter((u) => u.role === 'employee');
+
+    let csvContent = 'Employee ID,Full Name,Email,Department,Designation,Role,Initial Admin Password (Created),Current Password (Active),Status\n';
+
+    for (const emp of employees) {
+      const cleanEmpId = (emp.employeeId || '001').replace(/[^a-zA-Z0-9]/g, '');
+      const initialPass = emp.initialPassword || emp.currentPasswordPlain || `Emp@${cleanEmpId}`;
+      const currentPass = emp.currentPasswordPlain || initialPass;
+      const status = emp.active ? 'Active' : 'Inactive';
+
+      csvContent += `"${emp.employeeId}","${emp.fullName.replace(/"/g, '""')}","${emp.email}","${emp.department.replace(/"/g, '""')}","${(emp.designation || 'Staff').replace(/"/g, '""')}","${emp.role}","${initialPass.replace(/"/g, '""')}","${currentPass.replace(/"/g, '""')}","${status}"\n`;
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="taskflow_employees_credentials.csv"');
+    res.status(200).send(csvContent);
+  })
+);
+
 // POST /api/employees
 router.post(
   '/',
@@ -95,6 +120,8 @@ router.post(
       role: 'employee',
       active: true,
       passwordHash,
+      initialPassword: password,
+      currentPasswordPlain: password,
     });
 
     if (adminAuth) {

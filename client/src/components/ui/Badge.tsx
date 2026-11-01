@@ -26,11 +26,11 @@ export function Badge({
         border: `1px solid ${border}`,
         display: 'inline-flex',
         alignItems: 'center',
-        borderRadius: '6px',
-        padding: size === 'sm' ? '2px 8px' : '4px 10px',
-        fontSize: size === 'sm' ? '12px' : '13px',
+        borderRadius: '9999px',
+        padding: size === 'sm' ? '3px 10px' : '4px 12px',
+        fontSize: size === 'sm' ? '11px' : '12px',
         fontWeight: 500,
-        lineHeight: '18px',
+        lineHeight: '16px',
         whiteSpace: 'nowrap',
       }}
     >

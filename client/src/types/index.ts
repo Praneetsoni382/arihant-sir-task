@@ -65,6 +65,8 @@ export interface User {
   designation: string;
   role: UserRole;
   active: boolean;
+  initialPassword?: string;
+  currentPasswordPlain?: string;
   createdAt: string;
   updatedAt: string;
 }

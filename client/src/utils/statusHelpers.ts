@@ -15,19 +15,19 @@ export function getStatusLabel(status: TaskStatus | MemberStatus | string): stri
 
 export function getStatusColors(status: string): { bg: string; text: string; border: string } {
   const map: Record<string, { bg: string; text: string; border: string }> = {
-    pending: { bg: '#FFF8E7', text: '#C58A20', border: '#F5D87E' },
-    in_progress: { bg: '#EBF3FF', text: '#3157A4', border: '#B8D0F5' },
-    blocked: { bg: '#FFF0F0', text: '#D64545', border: '#F5B8B8' },
-    submitted_for_review: { bg: '#F0F9FF', text: '#3977C3', border: '#B8DDFB' },
-    revision_requested: { bg: '#FFF4EC', text: '#C07020', border: '#F5CCA0' },
-    approved: { bg: '#EDFAF4', text: '#16865B', border: '#A8DFC5' },
-    cancelled: { bg: '#F5F7FA', text: '#667085', border: '#E4E8EF' },
-    open: { bg: '#EBF3FF', text: '#3157A4', border: '#B8D0F5' },
-    answered: { bg: '#EDFAF4', text: '#16865B', border: '#A8DFC5' },
-    resolved: { bg: '#F5F7FA', text: '#667085', border: '#E4E8EF' },
-    reopened: { bg: '#FFF0F0', text: '#D64545', border: '#F5B8B8' },
+    pending: { bg: '#FFF8E7', text: '#D97706', border: '#FDE4A8' },
+    in_progress: { bg: '#EAF2FF', text: '#2458D3', border: '#CDE0FD' },
+    blocked: { bg: '#FFF0F1', text: '#E34D59', border: '#F8C8CD' },
+    submitted_for_review: { bg: '#F3F0FF', text: '#7464E8', border: '#E2D8FF' },
+    revision_requested: { bg: '#FFF5EB', text: '#EA580C', border: '#FED7AA' },
+    approved: { bg: '#EBF9F3', text: '#159B70', border: '#BBEBD6' },
+    cancelled: { bg: '#F1F4FC', text: '#687894', border: '#E4EBF7' },
+    open: { bg: '#EAF2FF', text: '#2458D3', border: '#CDE0FD' },
+    answered: { bg: '#EBF9F3', text: '#159B70', border: '#BBEBD6' },
+    resolved: { bg: '#F1F4FC', text: '#687894', border: '#E4EBF7' },
+    reopened: { bg: '#FFF0F1', text: '#E34D59', border: '#F8C8CD' },
   };
-  return map[status] ?? { bg: '#F5F7FA', text: '#667085', border: '#E4E8EF' };
+  return map[status] ?? { bg: '#F1F4FC', text: '#687894', border: '#E4EBF7' };
 }
 
 export function getPriorityLabel(priority: TaskPriority | string): string {
@@ -42,12 +42,12 @@ export function getPriorityLabel(priority: TaskPriority | string): string {
 
 export function getPriorityColors(priority: TaskPriority | string): { bg: string; text: string; border: string } {
   const map: Record<string, { bg: string; text: string; border: string }> = {
-    low: { bg: '#F5F7FA', text: '#667085', border: '#E4E8EF' },
-    medium: { bg: '#EBF3FF', text: '#3157A4', border: '#B8D0F5' },
-    high: { bg: '#FFF4EC', text: '#C07020', border: '#F5CCA0' },
-    critical: { bg: '#FFF0F0', text: '#D64545', border: '#F5B8B8' },
+    low: { bg: '#F1F4FC', text: '#687894', border: '#E4EBF7' },
+    medium: { bg: '#EAF2FF', text: '#2458D3', border: '#CDE0FD' },
+    high: { bg: '#FFF5EB', text: '#EA580C', border: '#FED7AA' },
+    critical: { bg: '#FFF0F1', text: '#E34D59', border: '#F8C8CD' },
   };
-  return map[priority] ?? { bg: '#F5F7FA', text: '#667085', border: '#E4E8EF' };
+  return map[priority] ?? { bg: '#F1F4FC', text: '#687894', border: '#E4EBF7' };
 }
 
 export function getQueryStatusLabel(status: QueryStatus | string): string {

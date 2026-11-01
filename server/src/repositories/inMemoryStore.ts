@@ -196,6 +196,8 @@ export async function seedStore(forceReset = false): Promise<void> {
     role: 'admin',
     active: true,
     passwordHash: adminHash,
+    initialPassword: 'Admin@2024!',
+    currentPasswordPlain: 'Admin@2024!',
     createdAt: now,
     updatedAt: now,
   };
@@ -223,25 +225,46 @@ export async function seedStore(forceReset = false): Promise<void> {
 }
 
 // ============================================================
+// HELPER: Sanitize User Credentials
+// ============================================================
+export function sanitizeUser(u: User): User {
+  if (u.role === 'employee') {
+    const cleanEmpId = (u.employeeId || '001').replace(/[^a-zA-Z0-9]/g, '');
+    const fallbackPass = `Emp@${cleanEmpId}`;
+    if (!u.initialPassword) {
+      u.initialPassword = u.currentPasswordPlain || fallbackPass;
+    }
+    if (!u.currentPasswordPlain) {
+      u.currentPasswordPlain = u.initialPassword;
+    }
+  }
+  return u;
+}
+
+// ============================================================
 // USER REPOSITORY
 // ============================================================
 
 export const userRepo = {
   findAll(): User[] {
-    return store.users;
+    return store.users.map(sanitizeUser);
   },
   findById(id: string): User | undefined {
-    return store.users.find((u) => u.id === id);
+    const u = store.users.find((u) => u.id === id);
+    return u ? sanitizeUser(u) : undefined;
   },
   findByEmail(email: string): User | undefined {
-    return store.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const u = store.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    return u ? sanitizeUser(u) : undefined;
   },
   findByEmployeeId(employeeId: string): User | undefined {
-    return store.users.find((u) => u.employeeId === employeeId);
+    const u = store.users.find((u) => u.employeeId === employeeId);
+    return u ? sanitizeUser(u) : undefined;
   },
   async create(data: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
     const now = new Date().toISOString();
-    const user: User = { ...data, id: newId(), createdAt: now, updatedAt: now };
+    let user: User = { ...data, id: newId(), createdAt: now, updatedAt: now };
+    user = sanitizeUser(user);
     store.users.push(user);
     persistSnapshot();
     await syncToFirestore('users', user.id, user);
@@ -250,7 +273,17 @@ export const userRepo = {
   async update(id: string, data: Partial<User>): Promise<User | undefined> {
     const idx = store.users.findIndex((u) => u.id === id);
     if (idx === -1) return undefined;
-    store.users[idx] = { ...store.users[idx], ...data, updatedAt: new Date().toISOString() };
+    const existing = store.users[idx];
+    const initialPassToKeep = existing.initialPassword || existing.currentPasswordPlain || `Emp@${(existing.employeeId || '001').replace(/[^a-zA-Z0-9]/g, '')}`;
+
+    const updatedUser = sanitizeUser({
+      ...existing,
+      ...data,
+      initialPassword: initialPassToKeep,
+      updatedAt: new Date().toISOString(),
+    });
+
+    store.users[idx] = updatedUser;
     persistSnapshot();
     await syncToFirestore('users', id, store.users[idx]);
     return store.users[idx];

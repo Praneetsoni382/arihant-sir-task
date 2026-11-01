@@ -60,6 +60,8 @@ export const authApi = {
     api.post<ApiResponse>('/auth/login', { email, password }),
   logout: () => api.post<ApiResponse>('/auth/logout'),
   me: () => api.get<ApiResponse>('/auth/me'),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.post<ApiResponse>('/auth/change-password', data),
 };
 
 // Employees
@@ -71,6 +73,17 @@ export const employeeApi = {
   update: (id: string, data: unknown) => api.patch<ApiResponse>(`/employees/${id}`, data),
   updateStatus: (id: string, active: boolean) =>
     api.patch<ApiResponse>(`/employees/${id}/status`, { active }),
+  exportCsv: async () => {
+    const response = await api.get('/employees/export-csv', { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'taskflow_employees_credentials.csv');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
 };
 
 // Tasks

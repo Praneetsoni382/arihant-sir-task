@@ -10,6 +10,11 @@ import {
   HelpCircle,
   ArrowRight,
   MessageSquareReply,
+  Eye,
+  EyeOff,
+  Key,
+  ShieldCheck,
+  Lock,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -27,10 +32,17 @@ import {
   getPriorityLabel,
 } from '../../utils/statusHelpers';
 import type { EmployeeDashboardData, StatusRequest } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { ChangePasswordModal } from '../../components/auth/ChangePasswordModal';
 
 export function EmployeeDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  // Password modal state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showInitialPass, setShowInitialPass] = useState(false);
 
   // Status response modal
   const [respondingTo, setRespondingTo] = useState<StatusRequest | null>(null);
@@ -97,75 +109,124 @@ export function EmployeeDashboard() {
     respondMutation.mutate({ reqId: respondingTo.id, text: responseText.trim() });
   };
 
+  const initialPasswordVal =
+    user?.initialPassword ||
+    user?.currentPasswordPlain ||
+    (user?.employeeId ? `Emp@${user.employeeId.replace(/[^a-zA-Z0-9]/g, '')}` : 'Password set by Admin');
+
   return (
     <AppLayout title="Personal Work Dashboard">
       <div className="space-y-6 max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E4E8EF]">
+        {/* Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E4EBF7]">
           <div>
-            <h1 className="text-xl font-bold text-[#172033]">Assigned Responsibilities & Progress</h1>
-            <p className="text-xs text-[#667085] mt-0.5">
-              Track delegated assignments, update your execution status, and resolve manager inquiries
+            <h1 className="font-heading font-semibold text-xl text-[#14213D] tracking-tight">Assigned Responsibilities & Progress</h1>
+            <p className="font-sans font-normal text-xs text-[#687894] mt-0.5">
+              Track delegated assignments, update your execution status, and manage workspace security
             </p>
           </div>
-          <Button size="sm" variant="outline" onClick={() => navigate('/employee/tasks')}>
-            <CheckSquare size={16} />
-            View All My Tasks
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant="primary" onClick={() => setShowPasswordModal(true)}>
+              <Key size={15} />
+              <span>Change Password</span>
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => navigate('/employee/tasks')}>
+              <CheckSquare size={15} />
+              <span>View All My Tasks</span>
+            </Button>
+          </div>
         </div>
+
+        {/* Account Credentials & Real-time Security Banner */}
+        <div className="rounded-2xl bg-gradient-to-r from-[#071B3A] via-[#102A56] to-[#1E3A70] text-white p-5 shadow-md border border-[#2458D3]/30">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-[#2458D3]/30 border border-white/20 flex items-center justify-center text-[#168BFF] shrink-0 mt-0.5">
+                <ShieldCheck size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-heading font-semibold text-base text-white tracking-tight">
+                    Account Security & Assigned Credentials
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#159B70]/20 text-[#34D399] border border-[#159B70]/30">
+                    Real-time Auth Sync Active
+                  </span>
+                </div>
+                <p className="font-sans text-xs text-[#A0B3D6] mt-0.5">
+                  Logged in as <span className="text-white font-medium">{user?.fullName}</span> ({user?.employeeId || user?.email})
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/15">
+              <div className="flex items-center gap-2">
+                <Lock size={14} className="text-[#168BFF]" />
+                <span className="text-xs text-[#CBD5E1]">Admin Created Password:</span>
+                <span className="text-xs font-mono font-semibold tracking-wider text-white">
+                  {showInitialPass ? initialPasswordVal : '••••••••••••'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInitialPass(!showInitialPass)}
+                className="p-1 rounded text-[#CBD5E1] hover:text-white hover:bg-white/10 transition-colors"
+                title={showInitialPass ? 'Hide password' : 'View admin registered password'}
+              >
+                {showInitialPass ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Change Password Modal */}
+        <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
 
         {/* 4 Metric Block Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#EAF2FF] via-[#F3F8FF] to-[#FFFFFF] p-5 border border-[#CDE0FD] shadow-[0_4px_20px_rgba(20,33,61,0.03)] hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-[#667085] uppercase tracking-wider">Assigned to Me</p>
-                <h3 className="text-3xl font-bold text-[#172033] mt-2">{totalAssigned}</h3>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-[#EBF3FF] text-[#3157A4] flex items-center justify-center">
-                <Clock size={20} />
+              <span className="font-sans font-semibold text-xs text-[#14213D]">Assigned to Me</span>
+              <div className="w-8 h-8 rounded-full bg-[#2458D3] text-white flex items-center justify-center shadow-xs">
+                <Clock size={16} />
               </div>
             </div>
-            <p className="text-[11px] text-[#667085] mt-3">Total active deliverables</p>
-          </Card>
+            <h3 className="font-sans font-bold text-3xl text-[#14213D] mt-3 tracking-tight tabular-nums">{totalAssigned}</h3>
+            <p className="font-sans font-normal text-xs text-[#687894] mt-2">Total active deliverables</p>
+          </div>
 
-          <Card>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#EFF6FF] via-[#F8FAFC] to-[#FFFFFF] p-5 border border-[#BFDBFE] shadow-[0_4px_20px_rgba(20,33,61,0.03)] hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-[#667085] uppercase tracking-wider">In Progress</p>
-                <h3 className="text-3xl font-bold text-[#3157A4] mt-2">{inProgress}</h3>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-[#EBF3FF] text-[#3157A4] flex items-center justify-center">
-                <CheckSquare size={20} />
+              <span className="font-sans font-semibold text-xs text-[#14213D]">In Progress</span>
+              <div className="w-8 h-8 rounded-full bg-[#168BFF] text-white flex items-center justify-center shadow-xs">
+                <CheckSquare size={16} />
               </div>
             </div>
-            <p className="text-[11px] text-[#667085] mt-3">Currently undergoing execution</p>
-          </Card>
+            <h3 className="font-sans font-bold text-3xl text-[#168BFF] mt-3 tracking-tight tabular-nums">{inProgress}</h3>
+            <p className="font-sans font-normal text-xs text-[#687894] mt-2">Currently undergoing execution</p>
+          </div>
 
-          <Card>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#FFF5EB] via-[#FFFAF4] to-[#FFFFFF] p-5 border border-[#FCE1C5] shadow-[0_4px_20px_rgba(20,33,61,0.03)] hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-[#667085] uppercase tracking-wider">Under Review</p>
-                <h3 className="text-3xl font-bold text-[#C58A20] mt-2">{submitted}</h3>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-[#FFF8E7] text-[#C58A20] flex items-center justify-center">
-                <AlertCircle size={20} />
+              <span className="font-sans font-semibold text-xs text-[#14213D]">Under Review</span>
+              <div className="w-8 h-8 rounded-full bg-[#E5A02A] text-white flex items-center justify-center shadow-xs">
+                <AlertCircle size={16} />
               </div>
             </div>
-            <p className="text-[11px] text-[#667085] mt-3">Submitted for manager sign-off</p>
-          </Card>
+            <h3 className="font-sans font-bold text-3xl text-[#E5A02A] mt-3 tracking-tight tabular-nums">{submitted}</h3>
+            <p className="font-sans font-normal text-xs text-[#687894] mt-2">Submitted for manager sign-off</p>
+          </div>
 
-          <Card>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#EBF9F3] via-[#F4FCF8] to-[#FFFFFF] p-5 border border-[#BBEBD6] shadow-[0_4px_20px_rgba(20,33,61,0.03)] hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-[#667085] uppercase tracking-wider">Approved Work</p>
-                <h3 className="text-3xl font-bold text-[#16865B] mt-2">{approved}</h3>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-[#EDFAF4] text-[#16865B] flex items-center justify-center">
-                <CheckCircle2 size={20} />
+              <span className="font-sans font-semibold text-xs text-[#14213D]">Approved Work</span>
+              <div className="w-8 h-8 rounded-full bg-[#159B70] text-white flex items-center justify-center shadow-xs">
+                <CheckCircle2 size={16} />
               </div>
             </div>
-            <p className="text-[11px] text-[#667085] mt-3">Successfully verified deliverables</p>
-          </Card>
+            <h3 className="font-sans font-bold text-3xl text-[#159B70] mt-3 tracking-tight tabular-nums">{approved}</h3>
+            <p className="font-sans font-normal text-xs text-[#687894] mt-2">Successfully verified deliverables</p>
+          </div>
         </div>
 
         {/* Action Required: Pending Status Requests from Manager */}
