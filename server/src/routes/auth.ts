@@ -27,7 +27,10 @@ router.post(
     }
 
     const { email, password } = parse.data;
-    const user = userRepo.findByEmail(email);
+    let user = userRepo.findByEmail(email);
+    if (!user) {
+      user = await userRepo.fetchFromCloudByEmail(email);
+    }
 
     if (!user) {
       res.status(401).json({ success: false, error: 'Invalid email or password' });
@@ -159,7 +162,10 @@ router.get(
   '/me',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const user = userRepo.findById(req.session.userId!);
+    let user = userRepo.findById(req.session.userId!);
+    if (!user) {
+      user = await userRepo.fetchFromCloudById(req.session.userId!);
+    }
     if (!user) {
       res.status(404).json({ success: false, error: 'User not found' });
       return;

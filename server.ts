@@ -5,7 +5,8 @@ const distServerPath = path.resolve(process.cwd(), 'server/dist/server.js');
 
 async function startServer() {
   try {
-    if (fs.existsSync(distServerPath)) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction && fs.existsSync(distServerPath)) {
       // Production deployment (e.g. Render after npm run build)
       await import('./server/dist/server.js');
     } else {

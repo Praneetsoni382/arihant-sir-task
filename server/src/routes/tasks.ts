@@ -258,7 +258,10 @@ router.get(
   '/:id',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const task = taskRepo.findById(req.params.id);
+    let task = taskRepo.findById(req.params.id);
+    if (!task) {
+      task = await taskRepo.fetchFromCloudById(req.params.id);
+    }
     if (!task) {
       res.status(404).json({ success: false, error: 'Task not found' });
       return;
@@ -285,7 +288,10 @@ router.patch(
   '/:id',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const task = taskRepo.findById(req.params.id);
+    let task = taskRepo.findById(req.params.id);
+    if (!task) {
+      task = await taskRepo.fetchFromCloudById(req.params.id);
+    }
     if (!task) {
       res.status(404).json({ success: false, error: 'Task not found' });
       return;

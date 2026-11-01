@@ -143,10 +143,10 @@ export const firestoreDb = {
     if (clientDbInstance) {
       const docRef = doc(clientDbInstance, collectionPath, docId);
       const snap = await getDoc(docRef);
-      return snap.exists() ? snap.data() : null;
+      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
     } else if (adminDbInstance) {
       const snap = await adminDbInstance.collection(collectionPath).doc(docId).get();
-      return snap.exists ? snap.data() : null;
+      return snap.exists ? { id: snap.id, ...snap.data() } : null;
     }
     return null;
   },
@@ -155,12 +155,23 @@ export const firestoreDb = {
     if (clientDbInstance) {
       const colRef = firestoreCollection(clientDbInstance, collectionPath);
       const snap = await getDocs(colRef);
-      return snap.docs.map((d) => d.data());
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     } else if (adminDbInstance) {
       const snap = await adminDbInstance.collection(collectionPath).get();
-      return snap.docs.map((d) => d.data());
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     }
     return [];
+  },
+
+  async queryByField(collectionPath: string, field: string, value: any): Promise<any[]> {
+    const all = await this.collectionGetAll(collectionPath);
+    return all.filter((item) => {
+      const targetVal = item[field];
+      if (typeof targetVal === 'string' && typeof value === 'string') {
+        return targetVal.toLowerCase() === value.toLowerCase();
+      }
+      return targetVal === value;
+    });
   },
 
   async docDelete(collectionPath: string, docId: string): Promise<void> {

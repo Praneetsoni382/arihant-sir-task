@@ -120,69 +120,11 @@ export async function seedStore(forceReset = false): Promise<void> {
     store.notifications = [];
     store.auditEvents = [];
     store.reminderOccurrences = [];
+    store.devices = [];
     store.taskCounter = 1000;
   }
 
-  // 1. Try to load authoritative records from Firestore if available
-  if (!forceReset) {
-    try {
-      const usersData = await firestoreDb.collectionGetAll('users');
-      if (usersData && usersData.length > 0) {
-        console.log(`🔥 Synchronizing authoritative users from Cloud Firestore...`);
-        store.users = (usersData as User[]).filter((u) => u && u.email && u.id);
-
-        const tasksData = await firestoreDb.collectionGetAll('tasks');
-        store.tasks = (tasksData as Task[]).filter((t) => t && t.id);
-
-        const membersData = await firestoreDb.collectionGetAll('taskMembers');
-        store.taskMembers = (membersData as TaskMember[]).filter((m) => m && m.id);
-
-        const srData = await firestoreDb.collectionGetAll('statusRequests');
-        store.statusRequests = (srData as StatusRequest[]).filter((s) => s && s.id);
-
-        const queriesData = await firestoreDb.collectionGetAll('queries');
-        store.queries = (queriesData as Query[]).filter((q) => q && q.id);
-
-        const notifData = await firestoreDb.collectionGetAll('notifications');
-        store.notifications = (notifData as Notification[]).filter((n) => n && n.id);
-
-        const auditData = await firestoreDb.collectionGetAll('auditEvents');
-        if (auditData.length > 0) {
-          store.auditEvents = (auditData as AuditEvent[]).filter((a) => a && a.id);
-        }
-
-        // Ensure single admin exists
-        const hasAdmin = store.users.some((u) => u.role === 'admin' && u.email === 'admin@company.com');
-        if (hasAdmin) {
-          persistSnapshot();
-          console.log(`✅ Loaded ${store.users.length} active users and ${store.tasks.length} tasks from Cloud Firestore.`);
-          return;
-        }
-      }
-    } catch (fsErr) {
-      console.warn('ℹ️ Firestore read notice:', fsErr instanceof Error ? fsErr.message : fsErr);
-    }
-  }
-
-  // 2. Try to restore from persistent disk snapshot
-  if (!forceReset && fs.existsSync(snapshotPath)) {
-    try {
-      const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-      if (snapshot.users && snapshot.users.length > 0) {
-        Object.assign(store, snapshot);
-        
-        const hasAdmin = store.users.some((u) => u.role === 'admin' && u.email === 'admin@company.com');
-        if (hasAdmin) {
-          console.log(`📦 Restored ${store.users.length} users and ${store.tasks.length} tasks from local persistence.`);
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('Could not read snapshot file, falling back to seed');
-    }
-  }
-
-  // 3. Initial Seed: Single Authoritative Administrator Account Only
+  // Authoritative Administrator definition
   const now = new Date().toISOString();
   const adminHash = await bcrypt.hash('Admin@2024!', 10);
 
@@ -202,6 +144,127 @@ export async function seedStore(forceReset = false): Promise<void> {
     updatedAt: now,
   };
 
+  // 1. Try to load authoritative records from Firestore if available
+  if (!forceReset) {
+    try {
+      const usersData = await firestoreDb.collectionGetAll('users');
+      if (usersData && usersData.length > 0) {
+        console.log(`🔥 Synchronizing authoritative collections from Cloud Firestore...`);
+        // Filter out corrupted test objects without email or role
+        const validUsers = (usersData as User[]).filter((u) => u && u.email && u.role);
+        store.users = validUsers;
+
+        const tasksData = await firestoreDb.collectionGetAll('tasks');
+        store.tasks = (tasksData as Task[]).filter((t) => t && t.id);
+
+        const membersData = await firestoreDb.collectionGetAll('taskMembers');
+        store.taskMembers = (membersData as TaskMember[]).filter((m) => m && m.id);
+
+        const srData = await firestoreDb.collectionGetAll('statusRequests');
+        store.statusRequests = (srData as StatusRequest[]).filter((s) => s && s.id);
+
+        const srespData = await firestoreDb.collectionGetAll('statusResponses');
+        store.statusResponses = (srespData as StatusResponse[]).filter((s) => s && s.id);
+
+        const queriesData = await firestoreDb.collectionGetAll('queries');
+        store.queries = (queriesData as Query[]).filter((q) => q && q.id);
+
+        const qmsgData = await firestoreDb.collectionGetAll('queryMessages');
+        store.queryMessages = (qmsgData as QueryMessage[]).filter((m) => m && m.id);
+
+        const chatData = await firestoreDb.collectionGetAll('chatMessages');
+        store.chatMessages = (chatData as ChatMessage[]).filter((c) => c && c.id);
+
+        const notifData = await firestoreDb.collectionGetAll('notifications');
+        store.notifications = (notifData as Notification[]).filter((n) => n && n.id);
+
+        const auditData = await firestoreDb.collectionGetAll('auditEvents');
+        if (auditData.length > 0) {
+          store.auditEvents = (auditData as AuditEvent[]).filter((a) => a && a.id);
+        }
+
+        const remData = await firestoreDb.collectionGetAll('reminderOccurrences');
+        store.reminderOccurrences = (remData as ReminderOccurrence[]).filter((r) => r && r.id);
+
+        const devData = await firestoreDb.collectionGetAll('devices');
+        store.devices = (devData as Device[]).filter((d) => d && ((d as any).id || d.deviceId));
+
+        // Derive highest task counter so reference numbers never collide
+        let maxRef = 1000;
+        for (const t of store.tasks) {
+          if (t.referenceNumber) {
+            const num = parseInt(t.referenceNumber.replace(/[^0-9]/g, ''), 10);
+            if (!isNaN(num) && num > maxRef) {
+              maxRef = num;
+            }
+          }
+        }
+        store.taskCounter = maxRef;
+
+        // Ensure single admin exists in store
+        const adminIdx = store.users.findIndex((u) => u.email.toLowerCase() === 'admin@company.com');
+        if (adminIdx === -1) {
+          store.users.unshift(admin);
+          await syncToFirestore('users', admin.id, admin);
+        }
+
+        // Credential alignment: Ensure all employees have valid passwordHash matching their credentials
+        for (const u of store.users) {
+          if (u.role === 'employee') {
+            const cleanEmpId = (u.employeeId || '001').replace(/[^a-zA-Z0-9]/g, '');
+            const fallbackPass = `Emp@${cleanEmpId}`;
+            if (!u.initialPassword) {
+              u.initialPassword = u.currentPasswordPlain || fallbackPass;
+            }
+            if (!u.currentPasswordPlain) {
+              u.currentPasswordPlain = u.initialPassword;
+            }
+            // Check if passwordHash matches
+            let matches = false;
+            if (u.passwordHash && u.initialPassword) {
+              try {
+                matches = await bcrypt.compare(u.initialPassword, u.passwordHash);
+              } catch {
+                matches = false;
+              }
+            }
+            if (!matches && u.initialPassword) {
+              u.passwordHash = await bcrypt.hash(u.initialPassword, 10);
+              await syncToFirestore('users', u.id, u);
+            }
+          }
+        }
+
+        persistSnapshot();
+        console.log(`✅ Loaded ${store.users.length} active users and ${store.tasks.length} tasks from Cloud Firestore (taskCounter: ${store.taskCounter}).`);
+        return;
+      }
+    } catch (fsErr) {
+      console.warn('ℹ️ Firestore read notice:', fsErr instanceof Error ? fsErr.message : fsErr);
+    }
+  }
+
+  // 2. Try to restore from persistent disk snapshot
+  if (!forceReset && fs.existsSync(snapshotPath)) {
+    try {
+      const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+      if (snapshot.users && snapshot.users.length > 0) {
+        Object.assign(store, snapshot);
+        
+        const hasAdmin = store.users.some((u) => u.role === 'admin' && u.email === 'admin@company.com');
+        if (!hasAdmin) {
+          store.users.unshift(admin);
+          await syncToFirestore('users', admin.id, admin);
+        }
+        console.log(`📦 Restored ${store.users.length} users and ${store.tasks.length} tasks from local persistence.`);
+        return;
+      }
+    } catch (e) {
+      console.warn('Could not read snapshot file, falling back to seed');
+    }
+  }
+
+  // 3. Initial Seed: Single Authoritative Administrator Account Only
   store.users = [admin];
   store.tasks = [];
   store.taskMembers = [];
@@ -213,6 +276,7 @@ export async function seedStore(forceReset = false): Promise<void> {
   store.notifications = [];
   store.auditEvents = [];
   store.reminderOccurrences = [];
+  store.devices = [];
   store.taskCounter = 1000;
 
   // Persist snapshot to disk
@@ -256,6 +320,44 @@ export const userRepo = {
   findByEmail(email: string): User | undefined {
     const u = store.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
     return u ? sanitizeUser(u) : undefined;
+  },
+  async fetchFromCloudByEmail(email: string): Promise<User | undefined> {
+    try {
+      const results = await firestoreDb.queryByField('users', 'email', email);
+      if (results.length > 0) {
+        const cloudUser = sanitizeUser(results[0] as User);
+        const existingIdx = store.users.findIndex((u) => u.id === cloudUser.id);
+        if (existingIdx !== -1) {
+          store.users[existingIdx] = cloudUser;
+        } else {
+          store.users.push(cloudUser);
+        }
+        persistSnapshot();
+        return cloudUser;
+      }
+    } catch (err) {
+      console.warn('Could not fetch user by email from cloud:', err);
+    }
+    return undefined;
+  },
+  async fetchFromCloudById(id: string): Promise<User | undefined> {
+    try {
+      const data = await firestoreDb.docGet('users', id);
+      if (data && data.email) {
+        const cloudUser = sanitizeUser(data as User);
+        const existingIdx = store.users.findIndex((u) => u.id === cloudUser.id);
+        if (existingIdx !== -1) {
+          store.users[existingIdx] = cloudUser;
+        } else {
+          store.users.push(cloudUser);
+        }
+        persistSnapshot();
+        return cloudUser;
+      }
+    } catch (err) {
+      console.warn('Could not fetch user by ID from cloud:', err);
+    }
+    return undefined;
   },
   findByEmployeeId(employeeId: string): User | undefined {
     const u = store.users.find((u) => u.employeeId === employeeId);
@@ -301,6 +403,24 @@ export const taskRepo = {
   findById(id: string): Task | undefined {
     return store.tasks.find((t) => t.id === id);
   },
+  async fetchFromCloudById(id: string): Promise<Task | undefined> {
+    try {
+      const data = await firestoreDb.docGet('tasks', id);
+      if (data && data.id) {
+        const existingIdx = store.tasks.findIndex((t) => t.id === data.id);
+        if (existingIdx !== -1) {
+          store.tasks[existingIdx] = data as Task;
+        } else {
+          store.tasks.push(data as Task);
+        }
+        persistSnapshot();
+        return data as Task;
+      }
+    } catch (err) {
+      console.warn('Could not fetch task by ID from cloud:', err);
+    }
+    return undefined;
+  },
   findByMember(userId: string): Task[] {
     const memberTaskIds = store.taskMembers
       .filter((tm) => tm.userId === userId)
@@ -309,7 +429,8 @@ export const taskRepo = {
   },
   async create(data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
     const now = new Date().toISOString();
-    const task: Task = { ...data, id: newId(), createdAt: now, updatedAt: now };
+    const referenceNumber = (data as any).referenceNumber || nextTaskRef();
+    const task: Task = { ...data, referenceNumber, id: newId(), createdAt: now, updatedAt: now };
     store.tasks.push(task);
     persistSnapshot();
     await syncToFirestore('tasks', task.id, task);
