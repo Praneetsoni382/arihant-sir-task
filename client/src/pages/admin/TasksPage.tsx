@@ -133,7 +133,8 @@ export function TasksPage() {
 
         {/* Task Table */}
         <Card padding={false} className="overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-[#FBFBFC] border-b border-[#E4E8EF] text-[#667085]">
                 <tr>
@@ -236,6 +237,104 @@ export function TasksPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="block md:hidden p-3.5 space-y-3">
+            {filteredTasks.length === 0 ? (
+              <div className="py-8 text-center text-xs text-[#667085]">
+                No tasks found matching your filter selection.
+              </div>
+            ) : (
+              filteredTasks.map((t) => {
+                const statusColors = getStatusColors(t.status);
+                const priorityColors = getPriorityColors(t.priority);
+                const overdue = isOverdue(t.deadline) && t.status !== 'approved';
+
+                return (
+                  <div
+                    key={t.id}
+                    className="p-3.5 rounded-xl border border-[#E4E8EF] bg-white shadow-2xs space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-xs text-[#172033] font-mono">{t.referenceNumber}</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] text-[#667085] capitalize px-2 py-0.5 rounded-md bg-[#FBFBFC] border border-[#E4E8EF]">
+                        {t.assignmentType === 'group' ? (
+                          <Users size={12} className="text-[#3157A4]" />
+                        ) : (
+                          <UserIcon size={12} className="text-[#667085]" />
+                        )}
+                        {t.assignmentType}
+                      </span>
+                    </div>
+
+                    <div>
+                      <p className="font-semibold text-xs text-[#172033] leading-snug">{t.title}</p>
+                      {t.description && (
+                        <p className="text-[11px] text-[#667085] line-clamp-2 mt-1 leading-relaxed">{t.description}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#E4E8EF]/60">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-[#667085]">Assignees:</span>
+                        <div className="flex items-center gap-1">
+                          {t.members?.slice(0, 3).map((m, idx) => (
+                            <div
+                              key={m.id}
+                              title={m.user?.fullName}
+                              className="w-5 h-5 rounded-full bg-[#EBF3FF] border border-[#B8D0F5] text-[#3157A4] font-semibold text-[9px] flex items-center justify-center"
+                            >
+                              {m.user?.fullName?.charAt(0) ?? `${idx + 1}`}
+                            </div>
+                          ))}
+                          {(t.members?.length ?? 0) > 3 && (
+                            <span className="text-[10px] text-[#667085]">
+                              +{(t.members?.length ?? 0) - 3}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <Badge
+                          bg={priorityColors.bg}
+                          color={priorityColors.text}
+                          border={priorityColors.border}
+                          size="sm"
+                        >
+                          {getPriorityLabel(t.priority)}
+                        </Badge>
+                        <Badge
+                          bg={statusColors.bg}
+                          color={statusColors.text}
+                          border={statusColors.border}
+                          size="sm"
+                        >
+                          {getStatusLabel(t.status)}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-[#E4E8EF] text-xs">
+                      <div className="flex items-center gap-1">
+                        {overdue && <AlertTriangle size={13} className="text-[#D64545]" />}
+                        <span className={`text-[11px] ${overdue ? 'text-[#D64545] font-semibold' : 'text-[#667085]'}`}>
+                          Due: {formatDate(t.deadline)}
+                        </span>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => navigate(`/admin/tasks/${t.id}`)}
+                      >
+                        Manage
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </Card>
       </div>

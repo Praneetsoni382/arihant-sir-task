@@ -8,12 +8,13 @@ import type { Notification } from '../../types';
 
 interface TopBarProps {
   title: string;
+  onToggleMobileMenu?: () => void;
 }
 
 import { Key } from 'lucide-react';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 
-export function TopBar({ title }: TopBarProps) {
+export function TopBar({ title, onToggleMobileMenu }: TopBarProps) {
   const { user } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -51,16 +52,17 @@ export function TopBar({ title }: TopBarProps) {
 
   return (
     <>
-      <header className="h-16 bg-white/95 backdrop-blur-md border-b border-[#E4EBF7] px-6 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 z-20">
-        <div className="flex items-center gap-3">
+      <header className="h-16 bg-white/95 backdrop-blur-md border-b border-[#E4EBF7] px-4 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 z-20">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
+            onClick={onToggleMobileMenu}
             className="p-1.5 -ml-1 text-[#687894] hover:text-[#14213D] rounded-lg transition-colors cursor-pointer"
             aria-label="Toggle navigation"
           >
             <Menu size={20} />
           </button>
-          <h2 className="font-heading font-semibold text-base sm:text-lg text-[#14213D] tracking-tight">{title}</h2>
+          <h2 className="font-heading font-semibold text-sm sm:text-lg text-[#14213D] tracking-tight truncate max-w-[150px] sm:max-w-md md:max-w-none">{title}</h2>
         </div>
 
         <div className="flex items-center gap-3.5">

@@ -181,7 +181,7 @@ export function ISTClockWidget() {
 
         {/* Right: Stats & Immediate Trigger Button */}
         <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-3.5 w-full lg:w-auto">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-center gap-3 w-full sm:w-auto">
             {/* Stat 1: Pending Tasks Monitored */}
             <div className="flex-1 sm:flex-initial flex items-center gap-3 bg-[#0B2554]/90 backdrop-blur-md px-4 py-3 rounded-2xl border border-[#1E4E9E]/70 shadow-sm">
               <div className="w-9 h-9 rounded-xl bg-[#168BFF]/20 text-[#38BDF8] flex items-center justify-center shrink-0">

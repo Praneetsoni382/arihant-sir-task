@@ -125,12 +125,12 @@ export function EmployeeDashboard() {
               Track delegated assignments, update your execution status, and manage workspace security
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button size="sm" variant="primary" onClick={() => setShowPasswordModal(true)}>
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+            <Button size="sm" variant="primary" onClick={() => setShowPasswordModal(true)} className="flex-1 sm:flex-initial justify-center">
               <Key size={15} />
               <span>Change Password</span>
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => navigate('/employee/tasks')}>
+            <Button size="sm" variant="secondary" onClick={() => navigate('/employee/tasks')} className="flex-1 sm:flex-initial justify-center">
               <CheckSquare size={15} />
               <span>View All My Tasks</span>
             </Button>
@@ -283,7 +283,8 @@ export function EmployeeDashboard() {
                 </Button>
               </CardHeader>
 
-              <div className="overflow-x-auto">
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-[#E4E8EF] text-[#667085]">
@@ -349,6 +350,62 @@ export function EmployeeDashboard() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="block md:hidden space-y-3">
+                {myTasks.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-[#667085]">
+                    You currently have no active assigned tasks.
+                  </div>
+                ) : (
+                  myTasks.map((t) => {
+                    const statusColors = getStatusColors(t.status);
+                    const priorityColors = getPriorityColors(t.priority);
+                    return (
+                      <div
+                        key={t.id}
+                        className="p-3.5 rounded-xl border border-[#E4E8EF] bg-[#FBFBFC] space-y-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-xs text-[#172033] font-mono">{t.referenceNumber}</span>
+                          <span className="text-[10px] text-[#667085] capitalize px-2 py-0.5 rounded-md bg-white border border-[#E4E8EF]">
+                            {t.assignmentType}
+                          </span>
+                        </div>
+                        <p className="font-semibold text-xs text-[#172033]">{t.title}</p>
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <Badge
+                            bg={priorityColors.bg}
+                            color={priorityColors.text}
+                            border={priorityColors.border}
+                            size="sm"
+                          >
+                            {getPriorityLabel(t.priority)}
+                          </Badge>
+                          <Badge
+                            bg={statusColors.bg}
+                            color={statusColors.text}
+                            border={statusColors.border}
+                            size="sm"
+                          >
+                            {getStatusLabel(t.status)}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between pt-2 border-t border-[#E4E8EF] text-xs">
+                          <span className="text-[11px] text-[#667085]">Due: {formatDate(t.deadline)}</span>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => navigate(`/employee/tasks/${t.id}`)}
+                          >
+                            Open Task
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </Card>
           </div>

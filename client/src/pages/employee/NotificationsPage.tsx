@@ -94,6 +94,7 @@ export function NotificationsPage() {
             <Button
               size="sm"
               variant="outline"
+              className="w-full sm:w-auto justify-center"
               onClick={() => markAllReadMutation.mutate()}
               loading={markAllReadMutation.isPending}
             >
@@ -104,7 +105,7 @@ export function NotificationsPage() {
         </div>
 
         {/* Filter bar */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             variant={filter === 'all' ? 'primary' : 'secondary'}
@@ -151,7 +152,7 @@ export function NotificationsPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                     <h3 className="text-xs font-bold text-[#172033]">{n.title}</h3>
                     <span className="text-[10px] text-[#667085] whitespace-nowrap">
                       {formatRelative(n.createdAt)}

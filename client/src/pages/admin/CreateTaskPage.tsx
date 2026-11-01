@@ -276,7 +276,7 @@ export function CreateTaskPage() {
 
             <div className="space-y-4">
               {/* Assignment Mode Radio */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label
                   onClick={() => {
                     setAssignmentType('solo');
@@ -586,11 +586,12 @@ export function CreateTaskPage() {
           </Card>
 
           {/* Form Actions */}
-          <div className="flex items-center justify-end gap-3 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-3 pt-2">
             <Button
               type="button"
               variant="secondary"
               onClick={() => navigate('/admin/tasks')}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
@@ -598,6 +599,7 @@ export function CreateTaskPage() {
               type="submit"
               size="lg"
               loading={createTaskMutation.isPending}
+              className="w-full sm:w-auto"
             >
               Issue & Assign Task
             </Button>

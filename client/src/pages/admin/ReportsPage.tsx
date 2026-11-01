@@ -134,6 +134,7 @@ export function ReportsPage() {
           <Button
             size="sm"
             variant="outline"
+            className="w-full sm:w-auto justify-center"
             onClick={handleExportCSV}
             disabled={tasks.length === 0}
           >
@@ -144,7 +145,7 @@ export function ReportsPage() {
 
         {/* Filter Controls */}
         <Card className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <select
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
@@ -212,12 +213,13 @@ export function ReportsPage() {
 
         {/* Report Table */}
         <Card padding={false} className="overflow-hidden">
-          <div className="p-3 bg-[#FBFBFC] border-b border-[#E4E8EF] flex items-center justify-between text-xs text-[#667085]">
+          <div className="p-3 bg-[#FBFBFC] border-b border-[#E4E8EF] flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-[#667085]">
             <span>Total Tasks Indexed: <strong className="text-[#172033]">{tasks.length}</strong></span>
             <span>Report Generated: {reportData?.generatedAt}</span>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-[#FBFBFC] border-b border-[#E4E8EF] text-[#667085]">
                 <tr>
@@ -285,6 +287,72 @@ export function ReportsPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Cards View */}
+          <div className="block md:hidden p-3.5 space-y-3">
+            {tasks.length === 0 ? (
+              <p className="text-center py-6 text-xs text-[#667085]">
+                No tasks matched the report filters.
+              </p>
+            ) : (
+              tasks.map((t) => {
+                const statusColors = getStatusColors(t.status);
+                return (
+                  <div
+                    key={t.taskId}
+                    className="p-3.5 bg-white rounded-xl border border-[#E4E8EF] shadow-xs space-y-3 text-xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs text-[#3157A4]">{t.referenceNumber}</span>
+                          <span className="text-[10px] text-[#667085]">• {t.department}</span>
+                        </div>
+                        <h3 className="font-semibold text-sm text-[#172033] mt-0.5">{t.title}</h3>
+                        <p className="text-[10px] text-[#667085] capitalize mt-0.5">
+                          {t.assignmentType} • Priority: {t.priority}
+                        </p>
+                      </div>
+                      <Badge
+                        bg={statusColors.bg}
+                        color={statusColors.text}
+                        border={statusColors.border}
+                      >
+                        {getStatusLabel(t.status)}
+                      </Badge>
+                    </div>
+
+                    {/* Members & individual status breakdown */}
+                    <div className="p-2.5 bg-[#FBFBFC] rounded-lg border border-[#E4E8EF] space-y-1.5">
+                      <span className="text-[10px] font-semibold text-[#667085] uppercase tracking-wider block">
+                        Assigned Members & States
+                      </span>
+                      {t.members.map((m) => (
+                        <div key={m.userId} className="flex items-center justify-between gap-2 text-[11px]">
+                          <span className="font-medium text-[#172033] truncate">{m.fullName}</span>
+                          <span className="text-[#667085] capitalize text-right shrink-0">
+                            {m.memberStatus.replace('_', ' ')}
+                            {m.submittedAt && ` (${m.submittedAt})`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Deadline */}
+                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#F0F4F8]">
+                      <span className="text-[#667085]">Deadline</span>
+                      <div className="flex items-center gap-1">
+                        {t.isOverdue && <AlertTriangle size={12} className="text-[#D64545]" />}
+                        <span className={t.isOverdue ? 'text-[#D64545] font-semibold' : 'text-[#172033]'}>
+                          {t.deadline}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </Card>
       </div>

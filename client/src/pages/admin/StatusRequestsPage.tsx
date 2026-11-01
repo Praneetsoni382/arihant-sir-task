@@ -96,10 +96,10 @@ export function StatusRequestsPage() {
           ) : (
             filtered.map((req) => (
               <Card key={req.id} className="p-5">
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-[#667085]">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-semibold text-[#667085] truncate max-w-full">
                         Task: {req.task?.referenceNumber} - {req.task?.title}
                       </span>
                       <Badge
@@ -119,7 +119,7 @@ export function StatusRequestsPage() {
                       </Badge>
                     </div>
 
-                    <h3 className="text-sm font-bold text-[#172033]">"{req.question}"</h3>
+                    <h3 className="text-sm font-bold text-[#172033] break-words">"{req.question}"</h3>
 
                     <p className="text-xs text-[#667085]">
                       Dispatched to: <span className="font-semibold text-[#172033]">{req.recipientName}</span> •{' '}
@@ -130,6 +130,7 @@ export function StatusRequestsPage() {
                   <Button
                     size="sm"
                     variant="outline"
+                    className="w-full sm:w-auto shrink-0 justify-center"
                     onClick={() => navigate(`/admin/tasks/${req.taskId}`)}
                   >
                     Open Task

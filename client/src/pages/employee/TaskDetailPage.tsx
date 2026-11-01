@@ -221,7 +221,7 @@ export function TaskDetailPage() {
               <h1 className="text-xl font-bold text-[#172033]">{task.title}</h1>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge
                 bg={priorityColors.bg}
                 color={priorityColors.text}
@@ -380,7 +380,7 @@ export function TaskDetailPage() {
             {myStatusRequests.map((sr) => (
               <div key={sr.id} className="p-3 bg-white rounded-lg border border-[#F5D87E] space-y-2">
                 <p className="text-xs font-bold text-[#172033]">"{sr.question}"</p>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     placeholder="Type your status update for the manager..."
@@ -389,7 +389,7 @@ export function TaskDetailPage() {
                       setRespondingToReqId(sr.id);
                       setStatusResponseText(e.target.value);
                     }}
-                    className="flex-1 px-3 py-1.5 text-xs border border-[#E4E8EF] rounded-lg"
+                    className="w-full flex-1 px-3 py-2 text-xs border border-[#E4E8EF] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3157A4]"
                   />
                   <Button
                     size="sm"
@@ -398,6 +398,7 @@ export function TaskDetailPage() {
                       sendStatusResponseMutation.mutate({ reqId: sr.id, text: statusResponseText.trim() })
                     }
                     loading={sendStatusResponseMutation.isPending}
+                    className="w-full sm:w-auto justify-center"
                   >
                     Reply
                   </Button>

@@ -151,7 +151,8 @@ export function QueriesPage() {
 
         {/* Query Table */}
         <Card padding={false} className="overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-[#FBFBFC] border-b border-[#E4E8EF] text-[#667085]">
                 <tr>
@@ -212,6 +213,67 @@ export function QueriesPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="block md:hidden p-3.5 space-y-3">
+            {filteredQueries.length === 0 ? (
+              <div className="py-8 text-center text-xs text-[#667085]">
+                No employee queries found.
+              </div>
+            ) : (
+              filteredQueries.map((q) => {
+                const statusColors = getStatusColors(q.status);
+                return (
+                  <div
+                    key={q.id}
+                    className="p-3.5 rounded-xl border border-[#E4E8EF] bg-white shadow-2xs space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-xs text-[#172033]">{q.title}</span>
+                      <Badge
+                        bg={statusColors.bg}
+                        color={statusColors.text}
+                        border={statusColors.border}
+                        size="sm"
+                      >
+                        {getQueryStatusLabel(q.status)}
+                      </Badge>
+                    </div>
+
+                    <div className="text-xs space-y-0.5">
+                      <p className="text-[#3157A4] font-medium text-[11px]">
+                        Task: {q.task?.referenceNumber} - {q.task?.title}
+                      </p>
+                      <p className="text-[#667085] text-[11px]">
+                        Author: <span className="text-[#172033] font-medium">{q.creatorName}</span>
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-[#E4E8EF]/60">
+                      <span className="text-[10px] text-[#667085] capitalize px-2 py-0.5 rounded bg-[#FBFBFC] border border-[#E4E8EF]">
+                        {q.category.replace('_', ' ')}
+                      </span>
+                      <span className="text-[10px] text-[#667085] capitalize px-2 py-0.5 rounded bg-[#FBFBFC] border border-[#E4E8EF]">
+                        Priority: {q.priority}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-[#E4E8EF] text-xs">
+                      <span className="text-[10px] text-[#667085]">{formatDateTime(q.createdAt)}</span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setSelectedQueryId(q.id)}
+                      >
+                        <MessageSquare size={13} />
+                        Thread
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </Card>
 

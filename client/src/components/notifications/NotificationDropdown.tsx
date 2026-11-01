@@ -84,7 +84,7 @@ export function NotificationDropdown({
   const recent = notifications.slice(0, 5);
 
   return (
-    <div className="absolute right-0 mt-2 w-84 sm:w-96 bg-white rounded-xl shadow-xl border border-[#E4E8EF] z-50 overflow-hidden">
+    <div className="absolute -right-12 sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-96 max-w-[360px] sm:max-w-none bg-white rounded-xl shadow-xl border border-[#E4E8EF] z-50 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#E4E8EF] bg-[#FBFBFC]">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-sm text-[#172033]">Notifications</span>

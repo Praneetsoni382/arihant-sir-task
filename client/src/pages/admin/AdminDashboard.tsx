@@ -85,11 +85,11 @@ export function AdminDashboard() {
               <p className="font-sans font-normal text-xs text-[#687894] mt-0.5">Real-time organizational tracking and task workflow status</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => navigate('/admin/tasks')}
-              className="bg-white hover:bg-[#F8FAFD] text-[#14213D] border border-[#E4EBF7] rounded-xl px-4 py-2.5 text-xs font-medium shadow-xs flex items-center gap-2 cursor-pointer transition-colors"
+              className="flex-1 sm:flex-initial justify-center bg-white hover:bg-[#F8FAFD] text-[#14213D] border border-[#E4EBF7] rounded-xl px-3.5 py-2.5 text-xs font-medium shadow-xs flex items-center gap-2 cursor-pointer transition-colors"
             >
               <LayoutGrid size={15} className="text-[#687894]" />
               <span>Browse All Tasks</span>
@@ -97,7 +97,7 @@ export function AdminDashboard() {
             <button
               type="button"
               onClick={() => navigate('/admin/tasks/new')}
-              className="bg-gradient-to-r from-[#2458D3] to-[#168BFF] hover:from-[#1D47B0] hover:to-[#0F75DC] text-white rounded-xl px-4.5 py-2.5 text-xs font-medium shadow-[0_4px_14px_rgba(22,139,255,0.35)] flex items-center gap-2 cursor-pointer transition-all"
+              className="flex-1 sm:flex-initial justify-center bg-gradient-to-r from-[#2458D3] to-[#168BFF] hover:from-[#1D47B0] hover:to-[#0F75DC] text-white rounded-xl px-4 py-2.5 text-xs font-medium shadow-[0_4px_14px_rgba(22,139,255,0.35)] flex items-center gap-2 cursor-pointer transition-all"
             >
               <PlusCircle size={16} />
               <span>Create Task</span>
@@ -209,7 +209,8 @@ export function AdminDashboard() {
                 </button>
               </div>
 
-              <div className="overflow-x-auto mt-2">
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto mt-2">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-[#E4EBF7] text-[#687894]">
@@ -277,6 +278,65 @@ export function AdminDashboard() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="block md:hidden mt-3 space-y-3">
+                {recentTasks.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-[#687894] font-normal">
+                    No recent tasks found.
+                  </div>
+                ) : (
+                  recentTasks.map((t: TaskWithMembers) => {
+                    const statusColors = getStatusColors(t.status);
+                    const priorityColors = getPriorityColors(t.priority);
+                    return (
+                      <div
+                        key={t.id}
+                        className="p-3.5 rounded-xl border border-[#E4EBF7] bg-[#FBFBFC] hover:bg-[#F8FAFD] space-y-2.5 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-xs text-[#14213D] font-mono">{t.referenceNumber}</span>
+                          <span className="text-[10px] text-[#687894] capitalize px-2 py-0.5 rounded-md bg-white border border-[#E4EBF7]">
+                            {t.assignmentType}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-xs text-[#14213D]">{t.title}</p>
+                          <p className="text-[11px] text-[#687894] mt-0.5">{t.members?.length ?? 0} assigned</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <Badge
+                            bg={priorityColors.bg}
+                            color={priorityColors.text}
+                            border={priorityColors.border}
+                            size="sm"
+                          >
+                            {getPriorityLabel(t.priority)}
+                          </Badge>
+                          <Badge
+                            bg={statusColors.bg}
+                            color={statusColors.text}
+                            border={statusColors.border}
+                            size="sm"
+                          >
+                            {getStatusLabel(t.status)}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between pt-2 border-t border-[#E4EBF7] text-xs">
+                          <span className="text-[11px] text-[#687894]">Due: {formatDate(t.deadline)}</span>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/tasks/${t.id}`)}
+                            className="bg-[#2458D3] text-white font-medium text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                          >
+                            View
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
 

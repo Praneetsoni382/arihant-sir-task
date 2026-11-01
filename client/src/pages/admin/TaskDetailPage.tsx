@@ -363,7 +363,7 @@ export function TaskDetailPage() {
         </Card>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-[#E4E8EF] gap-6 text-sm font-medium">
+        <div className="flex border-b border-[#E4E8EF] gap-3 sm:gap-6 text-xs sm:text-sm font-medium overflow-x-auto whitespace-nowrap pb-0.5">
           <button
             type="button"
             onClick={() => setActiveTab('members')}
@@ -424,21 +424,22 @@ export function TaskDetailPage() {
         {/* TAB 1: MEMBERS & INDIVIDUAL SUBMISSION REVIEW */}
         {activeTab === 'members' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-bold text-[#172033]">Assigned Team Status & Submissions</h3>
                 <p className="text-xs text-[#667085]">
                   Monitor individual employee execution and approve or request revisions
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={handleOpenStatusRequest}>
+              <Button size="sm" variant="outline" onClick={handleOpenStatusRequest} className="w-full sm:w-auto">
                 <MessageSquare size={14} />
                 Send Status Request
               </Button>
             </div>
 
             <Card padding={false} className="overflow-hidden">
-              <table className="w-full text-left border-collapse text-xs">
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
                 <thead className="bg-[#FBFBFC] border-b border-[#E4E8EF] text-[#667085]">
                   <tr>
                     <th className="py-3 px-4 font-semibold">Assignee</th>
@@ -536,7 +537,91 @@ export function TaskDetailPage() {
                   })}
                 </tbody>
               </table>
-            </Card>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="block md:hidden p-3.5 space-y-3">
+              {task.members.map((m) => {
+                const mColors = getStatusColors(m.memberStatus);
+                return (
+                  <div
+                    key={m.id}
+                    className="p-3.5 rounded-xl border border-[#E4E8EF] bg-white shadow-2xs space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-[#EBF3FF] border border-[#B8D0F5] text-[#3157A4] font-bold flex items-center justify-center text-xs">
+                          {m.user?.fullName?.charAt(0) ?? 'U'}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-xs text-[#172033]">{m.user?.fullName}</p>
+                          <p className="text-[10px] text-[#667085]">{m.user?.employeeId} • {m.user?.department}</p>
+                        </div>
+                      </div>
+                      <Badge bg={mColors.bg} color={mColors.text} border={mColors.border} size="sm">
+                        {getStatusLabel(m.memberStatus)}
+                      </Badge>
+                    </div>
+
+                    {m.submissionNote && (
+                      <div className="p-2.5 bg-[#F8FAFD] rounded-lg border border-[#E4E8EF] text-xs">
+                        <span className="text-[10px] text-[#667085] font-semibold uppercase block mb-0.5">Submission Note:</span>
+                        <span className="text-[#172033] italic">"{m.submissionNote}"</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between text-[11px] text-[#667085] pt-1 border-t border-[#E4E8EF]/60">
+                      <span>Submitted: {m.submittedAt ? formatDateTime(m.submittedAt) : 'Pending'}</span>
+                      <span>{m.reminderEligible ? 'Reminders: Active' : 'Reminders: Halted'}</span>
+                    </div>
+
+                    <div className="pt-2 border-t border-[#E4E8EF] flex items-center justify-end gap-2">
+                      {m.memberStatus === 'submitted_for_review' && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => approveMutation.mutate(m.id)}
+                            loading={approveMutation.isPending}
+                            className="bg-[#16865B] hover:bg-[#126b48] text-xs"
+                          >
+                            <CheckCircle size={13} />
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => {
+                              setSelectedMemberId(m.id);
+                              setRevisionModalOpen(true);
+                            }}
+                            className="text-xs"
+                          >
+                            <RotateCcw size={13} />
+                            Request Revision
+                          </Button>
+                        </>
+                      )}
+                      {m.memberStatus === 'approved' && (
+                        <span className="text-xs text-[#16865B] font-semibold flex items-center gap-1">
+                          <CheckCircle size={14} /> Approved
+                        </span>
+                      )}
+                      {m.memberStatus === 'revision_requested' && (
+                        <span className="text-xs text-[#C07020] font-semibold">
+                          Revision Pending
+                        </span>
+                      )}
+                      {m.memberStatus !== 'submitted_for_review' &&
+                        m.memberStatus !== 'approved' &&
+                        m.memberStatus !== 'revision_requested' && (
+                          <span className="text-xs text-[#667085]">Awaiting Submission</span>
+                        )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
           </div>
         )}
 

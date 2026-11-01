@@ -92,7 +92,8 @@ export function MyTasksPage() {
 
         {/* Tasks Table */}
         <Card padding={false} className="overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-[#FBFBFC] border-b border-[#E4E8EF] text-[#667085]">
                 <tr>
@@ -176,6 +177,82 @@ export function MyTasksPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="block md:hidden p-3.5 space-y-3">
+            {filtered.length === 0 ? (
+              <div className="py-8 text-center text-xs text-[#667085]">
+                No assigned tasks match your search criteria.
+              </div>
+            ) : (
+              filtered.map((t) => {
+                const statusColors = getStatusColors(t.status);
+                const priorityColors = getPriorityColors(t.priority);
+                const overdue = isOverdue(t.deadline) && t.status !== 'approved';
+
+                return (
+                  <div
+                    key={t.id}
+                    className="p-3.5 rounded-xl border border-[#E4E8EF] bg-white shadow-2xs space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-xs text-[#172033] font-mono">{t.referenceNumber}</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] text-[#667085] capitalize px-2 py-0.5 rounded-md bg-[#FBFBFC] border border-[#E4E8EF]">
+                        {t.assignmentType === 'group' ? (
+                          <Users size={12} className="text-[#3157A4]" />
+                        ) : (
+                          <User size={12} className="text-[#667085]" />
+                        )}
+                        {t.assignmentType}
+                      </span>
+                    </div>
+
+                    <div>
+                      <p className="font-semibold text-xs text-[#172033]">{t.title}</p>
+                      {t.description && (
+                        <p className="text-[11px] text-[#667085] line-clamp-2 mt-0.5 leading-relaxed">{t.description}</p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-[#E4E8EF]/60">
+                      <Badge
+                        bg={priorityColors.bg}
+                        color={priorityColors.text}
+                        border={priorityColors.border}
+                        size="sm"
+                      >
+                        {getPriorityLabel(t.priority)}
+                      </Badge>
+                      <Badge
+                        bg={statusColors.bg}
+                        color={statusColors.text}
+                        border={statusColors.border}
+                        size="sm"
+                      >
+                        {getStatusLabel(t.status)}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-[#E4E8EF] text-xs">
+                      <div className="flex items-center gap-1">
+                        {overdue && <AlertTriangle size={13} className="text-[#D64545]" />}
+                        <span className={`text-[11px] ${overdue ? 'text-[#D64545] font-semibold' : 'text-[#667085]'}`}>
+                          Due: {formatDate(t.deadline)}
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => navigate(`/employee/tasks/${t.id}`)}
+                      >
+                        Open Task
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </Card>
       </div>

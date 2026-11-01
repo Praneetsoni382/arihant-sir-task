@@ -70,7 +70,7 @@ export function PushNotificationPrompt() {
   };
 
   return (
-    <aside aria-label="Push Notifications" className="fixed bottom-6 right-6 z-50 max-w-md w-full p-4 bg-white rounded-xl shadow-2xl border border-[#E4E8EF] transition-all duration-300 animate-in fade-in slide-in-from-bottom-5">
+    <aside aria-label="Push Notifications" className="fixed bottom-20 lg:bottom-6 right-4 left-4 sm:left-auto sm:right-6 sm:max-w-md z-50 p-4 bg-white rounded-xl shadow-2xl border border-[#E4E8EF] transition-all duration-300 animate-in fade-in slide-in-from-bottom-5">
       <div className="flex items-start justify-between gap-3">
         <div className="w-10 h-10 rounded-lg bg-[#3157A4]/10 flex items-center justify-center text-[#3157A4] shrink-0">
           <Bell className="w-5 h-5 animate-pulse" />

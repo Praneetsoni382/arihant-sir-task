@@ -71,7 +71,7 @@ export function ForegroundNotificationToast() {
   };
 
   return (
-    <aside aria-label="Foreground notification alert" className="fixed top-5 right-5 z-50 max-w-sm w-full bg-[#172033] text-white p-3.5 rounded-xl shadow-2xl border border-gray-700/50 flex items-start gap-3 animate-in fade-in slide-in-from-top-3">
+    <aside aria-label="Foreground notification alert" className="fixed top-4 right-4 left-4 sm:left-auto sm:right-5 sm:max-w-sm z-50 bg-[#172033] text-white p-3.5 rounded-xl shadow-2xl border border-gray-700/50 flex items-start gap-3 animate-in fade-in slide-in-from-top-3">
       <div className="w-8 h-8 rounded-lg bg-[#3157A4] flex items-center justify-center shrink-0">
         <Bell className="w-4 h-4 text-white" />
       </div>

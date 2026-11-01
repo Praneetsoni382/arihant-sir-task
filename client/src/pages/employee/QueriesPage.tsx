@@ -91,7 +91,7 @@ export function QueriesPage() {
         </div>
 
         {/* Status Filter */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {['', 'open', 'answered', 'resolved'].map((st) => (
             <Button
               key={st}
@@ -106,7 +106,8 @@ export function QueriesPage() {
 
         {/* Queries List */}
         <Card padding={false} className="overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-[#FBFBFC] border-b border-[#E4E8EF] text-[#667085]">
                 <tr>
@@ -165,6 +166,70 @@ export function QueriesPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Cards View */}
+          <div className="block md:hidden p-3.5 space-y-3">
+            {queries.length === 0 ? (
+              <p className="text-center py-6 text-xs text-[#667085]">
+                You have not raised any queries yet.
+              </p>
+            ) : (
+              queries.map((q) => {
+                const statusColors = getStatusColors(q.status);
+                return (
+                  <div
+                    key={q.id}
+                    className="p-3.5 bg-white rounded-xl border border-[#E4E8EF] shadow-xs space-y-3 text-xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-semibold text-sm text-[#172033]">{q.title}</h3>
+                        <p className="text-[11px] text-[#3157A4] font-medium mt-0.5">
+                          {q.task?.referenceNumber} - {q.task?.title}
+                        </p>
+                      </div>
+                      <Badge
+                        bg={statusColors.bg}
+                        color={statusColors.text}
+                        border={statusColors.border}
+                      >
+                        {getQueryStatusLabel(q.status)}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-[#F0F4F8]">
+                      <div>
+                        <span className="text-[#667085] block">Category</span>
+                        <span className="text-[#172033] capitalize font-medium">
+                          {q.category.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#667085] block">Urgency</span>
+                        <span className="text-[#172033] capitalize font-medium">
+                          {q.priority}
+                        </span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-[#667085] block">Raised</span>
+                        <span className="text-[#172033]">{formatDateTime(q.createdAt)}</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="w-full justify-center"
+                      onClick={() => setSelectedQueryId(q.id)}
+                    >
+                      <MessageSquare size={13} />
+                      View Thread
+                    </Button>
+                  </div>
+                );
+              })
+            )}
           </div>
         </Card>
 

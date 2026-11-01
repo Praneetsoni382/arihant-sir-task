@@ -200,12 +200,12 @@ export function EmployeesPage() {
             <h1 className="text-xl font-bold text-[#172033]">Organizational Employees</h1>
             <p className="text-xs text-[#667085] mt-0.5">Manage personnel profiles, roles, departments, and credentials export</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleExportCsv} disabled={isExporting} size="sm">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button variant="outline" onClick={handleExportCsv} disabled={isExporting} size="sm" className="flex-1 sm:flex-initial justify-center">
               <Download size={16} />
-              {isExporting ? 'Exporting CSV...' : 'Export Employee CSV'}
+              {isExporting ? 'Exporting...' : 'Export CSV'}
             </Button>
-            <Button onClick={handleOpenCreate} size="sm">
+            <Button onClick={handleOpenCreate} size="sm" className="flex-1 sm:flex-initial justify-center">
               <UserPlus size={16} />
               Add Employee
             </Button>
@@ -253,7 +253,8 @@ export function EmployeesPage() {
 
         {/* Employee Table */}
         <Card padding={false} className="overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-[#FBFBFC] border-b border-[#E4E8EF] text-[#667085]">
                 <tr>
@@ -332,6 +333,81 @@ export function EmployeesPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="block md:hidden p-3.5 space-y-3">
+            {filteredEmployees.length === 0 ? (
+              <div className="py-8 text-center text-xs text-[#667085]">
+                No employees match the specified criteria.
+              </div>
+            ) : (
+              filteredEmployees.map((emp) => (
+                <div
+                  key={emp.id}
+                  className="p-3.5 rounded-xl border border-[#E4E8EF] bg-white shadow-2xs space-y-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-[#EBF3FF] text-[#3157A4] font-bold text-xs flex items-center justify-center shrink-0 border border-[#B8D0F5]">
+                        {emp.fullName.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-xs text-[#172033]">{emp.fullName}</p>
+                        <p className="text-[10px] text-[#667085] font-mono">{emp.employeeId}</p>
+                      </div>
+                    </div>
+                    {emp.active ? (
+                      <Badge bg="#EDFAF4" color="#16865B" border="#A8DFC5" size="sm">
+                        Active
+                      </Badge>
+                    ) : (
+                      <Badge bg="#FFF0F0" color="#D64545" border="#F5B8B8" size="sm">
+                        Inactive
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="text-xs space-y-1 pt-1 border-t border-[#E4E8EF]/60">
+                    <p className="text-[#667085] text-[11px] truncate">
+                      <span className="font-medium text-[#172033]">Email:</span> {emp.email}
+                    </p>
+                    <p className="text-[#667085] text-[11px]">
+                      <span className="font-medium text-[#172033]">Role:</span> {emp.department} • {emp.designation || 'Staff'}
+                    </p>
+                    <p className="text-[#667085] text-[10px]">
+                      Joined: {formatDate(emp.createdAt)}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4E8EF]">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleOpenEdit(emp)}
+                      className="text-xs"
+                    >
+                      <Edit2 size={13} />
+                      Edit Profile
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        statusMutation.mutate({ id: emp.id, active: !emp.active })
+                      }
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                        emp.active
+                          ? 'bg-[#FFF0F0] text-[#D64545] hover:bg-[#FFE4E4]'
+                          : 'bg-[#EDFAF4] text-[#16865B] hover:bg-[#D9F4E7]'
+                      }`}
+                    >
+                      <Power size={13} />
+                      {emp.active ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </Card>
 
