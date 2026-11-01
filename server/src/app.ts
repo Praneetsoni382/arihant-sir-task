@@ -21,6 +21,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import reminderRoutes from './routes/reminders.js';
 import reportRoutes from './routes/reports.js';
 import pushRoutes from './routes/push.js';
+import meetingRoutes from './routes/meetings.js';
 
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 
@@ -105,6 +106,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/admin', meetingRoutes);
+app.use('/api', meetingRoutes);
 
 // ============================================================
 // STATIC ASSETS & CLIENT SPA SERVING

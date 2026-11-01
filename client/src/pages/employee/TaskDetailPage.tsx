@@ -25,6 +25,7 @@ import { Select } from '../../components/ui/Select';
 import { PageLoader } from '../../components/ui/LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
 import { taskApi, statusRequestApi, queryApi, chatApi } from '../../services/api';
+import { GoogleMeetCard } from '../../components/meetings/GoogleMeetCard';
 import { formatDate, formatDateTime, isOverdue } from '../../utils/formatDate';
 import {
   getStatusColors,
@@ -380,6 +381,7 @@ export function TaskDetailPage() {
             {myStatusRequests.map((sr) => (
               <div key={sr.id} className="p-3 bg-white rounded-lg border border-[#F5D87E] space-y-2">
                 <p className="text-xs font-bold text-[#172033]">"{sr.question}"</p>
+                <GoogleMeetCard statusRequest={sr} isAdmin={false} />
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"

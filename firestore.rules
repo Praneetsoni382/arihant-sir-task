@@ -79,5 +79,9 @@ service cloud.firestore {
     match /auditEvents/{eventId} {
       allow read, write: if true;
     }
+
+    match /meetings/{meetingId} {
+      allow read, write: if true;
+    }
   }
 }

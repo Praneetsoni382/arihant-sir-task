@@ -6,6 +6,7 @@ import {
   Clock,
   ArrowRight,
   Search,
+  Video,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Card } from '../../components/ui/Card';
@@ -14,12 +15,15 @@ import { Badge } from '../../components/ui/Badge';
 import { PageLoader } from '../../components/ui/LoadingSpinner';
 import { statusRequestApi } from '../../services/api';
 import { formatDateTime, formatRelative } from '../../utils/formatDate';
+import { GoogleMeetCard } from '../../components/meetings/GoogleMeetCard';
+import { GoogleMeetAdminConnectModal } from '../../components/meetings/GoogleMeetAdminConnectModal';
 import type { StatusRequest } from '../../types';
 
 export function StatusRequestsPage() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [googleConnectOpen, setGoogleConnectOpen] = useState(false);
 
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ['admin-status-requests'],
@@ -54,11 +58,22 @@ export function StatusRequestsPage() {
   return (
     <AppLayout title="Manager Status Inquiries">
       <div className="space-y-6 max-w-7xl mx-auto">
-        <div className="pb-2 border-b border-[#E4E8EF]">
-          <h1 className="text-xl font-bold text-[#172033]">Status Request Tracking</h1>
-          <p className="text-xs text-[#667085] mt-0.5">
-            Monitor manager interrogation queries and evaluate employee response turnaround
-          </p>
+        <div className="pb-2 border-b border-[#E4E8EF] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-[#172033]">Status Request Tracking</h1>
+            <p className="text-xs text-[#667085] mt-0.5">
+              Monitor manager interrogation queries and evaluate employee response turnaround
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setGoogleConnectOpen(true)}
+            className="shrink-0 text-xs border-[#3157A4] text-[#3157A4]"
+          >
+            <Video size={14} />
+            Google Meet Connection
+          </Button>
         </div>
 
         {/* Filters */}
@@ -138,6 +153,13 @@ export function StatusRequestsPage() {
                   </Button>
                 </div>
 
+                {/* Google Meet Section inside Status Request Card */}
+                <GoogleMeetCard
+                  statusRequest={req}
+                  isAdmin={true}
+                  onOpenGoogleConnect={() => setGoogleConnectOpen(true)}
+                />
+
                 {/* Responses */}
                 {req.responses && req.responses.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-[#E4E8EF] space-y-2">
@@ -160,6 +182,11 @@ export function StatusRequestsPage() {
             ))
           )}
         </div>
+
+        <GoogleMeetAdminConnectModal
+          isOpen={googleConnectOpen}
+          onClose={() => setGoogleConnectOpen(false)}
+        />
       </div>
     </AppLayout>
   );

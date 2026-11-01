@@ -125,6 +125,27 @@ export interface StatusRequest {
   responses?: StatusResponse[];
   creatorName?: string;
   recipientName?: string;
+  meeting?: Meeting | null;
+}
+
+export type MeetingStatus = 'draft' | 'scheduled' | 'cancelled';
+
+export interface Meeting {
+  id: string;
+  statusRequestId: string;
+  taskId: string;
+  createdByAdminUid: string;
+  googleSpaceName?: string;
+  meetingUri: string;
+  meetingTitle: string;
+  description?: string;
+  status: MeetingStatus;
+  createdAt: string;
+  scheduledAt?: string | null;
+  timezone: string;
+  publishedAt?: string | null;
+  updatedAt: string;
+  cancelledAt?: string | null;
 }
 
 export interface StatusResponse {

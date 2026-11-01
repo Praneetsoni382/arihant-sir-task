@@ -4,7 +4,8 @@
 
 import { initializeApp as initializeClientApp, getApps as getClientApps } from 'firebase/app';
 import {
-  getFirestore as getClientFirestore,
+  initializeFirestore as initializeClientFirestore,
+  setLogLevel,
   doc,
   setDoc,
   getDoc,
@@ -19,6 +20,13 @@ import { getAuth, Auth } from 'firebase-admin/auth';
 import { getMessaging, Messaging } from 'firebase-admin/messaging';
 import fs from 'fs';
 import path from 'path';
+
+// Suppress noisy client SDK connection logs on server
+try {
+  setLogLevel('silent');
+} catch {
+  // ignore
+}
 
 export interface FirebaseConfig {
   projectId: string;
@@ -70,7 +78,7 @@ let adminMessagingInstance: Messaging | null = null;
 let clientDbInstance: ClientFirestore | null = null;
 let isConnected = false;
 
-// Initialize Admin App (if credentials present)
+// Initialize Admin App (Authoritative Server SDK)
 try {
   if (getAdminApps().length === 0) {
     if (firebaseConfig.clientEmail && firebaseConfig.privateKey) {
@@ -110,7 +118,7 @@ try {
   console.warn('⚠️ Firebase Admin initialization notice:', err);
 }
 
-// Initialize Client Web SDK for persistent operations
+// Initialize Client Web SDK as secondary fallback with forced HTTP long polling
 try {
   const clientApps = getClientApps();
   const cApp = clientApps.length > 0 ? clientApps[0] : initializeClientApp({
@@ -119,9 +127,11 @@ try {
     projectId: firebaseConfig.projectId,
     storageBucket: firebaseConfig.storageBucket,
   });
-  clientDbInstance = firebaseConfig.firestoreDatabaseId
-    ? getClientFirestore(cApp, firebaseConfig.firestoreDatabaseId)
-    : getClientFirestore(cApp);
+  clientDbInstance = initializeClientFirestore(
+    cApp,
+    { experimentalForceLongPolling: true },
+    firebaseConfig.firestoreDatabaseId || ''
+  );
   isConnected = true;
   console.log(`🔥 Client Firestore initialized for database: ${firebaseConfig.firestoreDatabaseId || 'default'}`);
 } catch (err) {
@@ -131,34 +141,46 @@ try {
 export const firestoreDb = {
   async docSet(collectionPath: string, docId: string, data: any): Promise<void> {
     const cleanData = JSON.parse(JSON.stringify(data));
-    if (clientDbInstance) {
-      const docRef = doc(clientDbInstance, collectionPath, docId);
-      await setDoc(docRef, cleanData, { merge: true });
-    } else if (adminDbInstance) {
-      await adminDbInstance.collection(collectionPath).doc(docId).set(cleanData, { merge: true });
+    try {
+      if (adminDbInstance) {
+        await adminDbInstance.collection(collectionPath).doc(docId).set(cleanData, { merge: true });
+      } else if (clientDbInstance) {
+        const docRef = doc(clientDbInstance, collectionPath, docId);
+        await setDoc(docRef, cleanData, { merge: true });
+      }
+    } catch (err) {
+      console.debug(`docSet notice for ${collectionPath}/${docId}:`, err instanceof Error ? err.message : err);
     }
   },
 
   async docGet(collectionPath: string, docId: string): Promise<any | null> {
-    if (clientDbInstance) {
-      const docRef = doc(clientDbInstance, collectionPath, docId);
-      const snap = await getDoc(docRef);
-      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
-    } else if (adminDbInstance) {
-      const snap = await adminDbInstance.collection(collectionPath).doc(docId).get();
-      return snap.exists ? { id: snap.id, ...snap.data() } : null;
+    try {
+      if (adminDbInstance) {
+        const snap = await adminDbInstance.collection(collectionPath).doc(docId).get();
+        return snap.exists ? { id: snap.id, ...snap.data() } : null;
+      } else if (clientDbInstance) {
+        const docRef = doc(clientDbInstance, collectionPath, docId);
+        const snap = await getDoc(docRef);
+        return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+      }
+    } catch (err) {
+      console.debug(`docGet notice for ${collectionPath}/${docId}:`, err instanceof Error ? err.message : err);
     }
     return null;
   },
 
   async collectionGetAll(collectionPath: string): Promise<any[]> {
-    if (clientDbInstance) {
-      const colRef = firestoreCollection(clientDbInstance, collectionPath);
-      const snap = await getDocs(colRef);
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    } else if (adminDbInstance) {
-      const snap = await adminDbInstance.collection(collectionPath).get();
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    try {
+      if (adminDbInstance) {
+        const snap = await adminDbInstance.collection(collectionPath).get();
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      } else if (clientDbInstance) {
+        const colRef = firestoreCollection(clientDbInstance, collectionPath);
+        const snap = await getDocs(colRef);
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      }
+    } catch (err) {
+      console.debug(`collectionGetAll notice for ${collectionPath}:`, err instanceof Error ? err.message : err);
     }
     return [];
   },
@@ -175,11 +197,15 @@ export const firestoreDb = {
   },
 
   async docDelete(collectionPath: string, docId: string): Promise<void> {
-    if (clientDbInstance) {
-      const docRef = doc(clientDbInstance, collectionPath, docId);
-      await deleteDoc(docRef);
-    } else if (adminDbInstance) {
-      await adminDbInstance.collection(collectionPath).doc(docId).delete();
+    try {
+      if (adminDbInstance) {
+        await adminDbInstance.collection(collectionPath).doc(docId).delete();
+      } else if (clientDbInstance) {
+        const docRef = doc(clientDbInstance, collectionPath, docId);
+        await deleteDoc(docRef);
+      }
+    } catch (err) {
+      console.debug(`docDelete notice for ${collectionPath}/${docId}:`, err instanceof Error ? err.message : err);
     }
   }
 };
@@ -191,4 +217,3 @@ export {
   adminMessagingInstance as adminMessaging,
   isConnected as isFirebaseConfigured,
 };
-

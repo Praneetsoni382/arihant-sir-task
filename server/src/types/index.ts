@@ -257,6 +257,35 @@ export interface AuditEvent {
   createdAt: string;
 }
 
+export type MeetingStatus = 'draft' | 'scheduled' | 'cancelled';
+
+export interface Meeting {
+  id: string;
+  statusRequestId: string;
+  taskId: string;
+  createdByAdminUid: string;
+  googleSpaceName?: string;
+  meetingUri: string;
+  meetingTitle: string;
+  description?: string;
+  status: MeetingStatus;
+  createdAt: string;
+  scheduledAt?: string | null;
+  timezone: string; // 'Asia/Kolkata' (IST)
+  publishedAt?: string | null;
+  updatedAt: string;
+  cancelledAt?: string | null;
+}
+
+export interface GoogleAuthTokens {
+  userId: string;
+  accessToken: string;
+  refreshToken?: string;
+  expiryDate?: number;
+  email?: string;
+  updatedAt: string;
+}
+
 // ============================================================
 // API RESPONSE TYPES
 // ============================================================

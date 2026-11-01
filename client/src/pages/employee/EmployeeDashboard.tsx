@@ -34,6 +34,7 @@ import {
 import type { EmployeeDashboardData, StatusRequest } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { ChangePasswordModal } from '../../components/auth/ChangePasswordModal';
+import { GoogleMeetCard } from '../../components/meetings/GoogleMeetCard';
 
 export function EmployeeDashboard() {
   const navigate = useNavigate();
@@ -243,20 +244,23 @@ export function EmployeeDashboard() {
               {pendingStatusRequests.map((sr) => (
                 <div
                   key={sr.id}
-                  className="p-3 bg-white rounded-lg border border-[#F5D87E] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  className="p-3 bg-white rounded-lg border border-[#F5D87E] flex flex-col justify-between gap-3 text-xs"
                 >
-                  <div>
-                    <span className="font-bold text-[#172033] block">"{sr.question}"</span>
-                    <span className="text-[11px] text-[#667085]">
-                      Task: {sr.task?.title} ({sr.task?.referenceNumber}) • Received {formatRelative(sr.createdAt)}
-                    </span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-[#172033] block">"{sr.question}"</span>
+                      <span className="text-[11px] text-[#667085]">
+                        Task: {sr.task?.title} ({sr.task?.referenceNumber}) • Received {formatRelative(sr.createdAt)}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleOpenRespond(sr)}
+                    >
+                      Reply to Manager
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => handleOpenRespond(sr)}
-                  >
-                    Reply to Manager
-                  </Button>
+                  <GoogleMeetCard statusRequest={sr} isAdmin={false} />
                 </div>
               ))}
             </div>

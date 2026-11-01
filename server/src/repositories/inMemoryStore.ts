@@ -26,6 +26,8 @@ import type {
   ReminderOccurrence,
   Device,
   PushPreferences,
+  Meeting,
+  GoogleAuthTokens,
 } from '../types/index.js';
 
 // ============================================================
@@ -46,6 +48,8 @@ interface Store {
   reminderOccurrences: ReminderOccurrence[];
   devices: Device[];
   pushPreferences: Record<string, PushPreferences>;
+  meetings: Meeting[];
+  googleAuthTokens: Record<string, GoogleAuthTokens>;
   taskCounter: number;
 }
 
@@ -63,6 +67,8 @@ const store: Store = {
   reminderOccurrences: [],
   devices: [],
   pushPreferences: {},
+  meetings: [],
+  googleAuthTokens: {},
   taskCounter: 1000,
 };
 
@@ -188,6 +194,16 @@ export async function seedStore(forceReset = false): Promise<void> {
 
         const devData = await firestoreDb.collectionGetAll('devices');
         store.devices = (devData as Device[]).filter((d) => d && ((d as any).id || d.deviceId));
+
+        const meetData = await firestoreDb.collectionGetAll('meetings');
+        store.meetings = (meetData as Meeting[]).filter((m) => m && m.id);
+
+        const gtokens = await firestoreDb.collectionGetAll('googleAuthTokens');
+        for (const gt of gtokens as GoogleAuthTokens[]) {
+          if (gt && gt.userId) {
+            store.googleAuthTokens[gt.userId] = gt;
+          }
+        }
 
         // Derive highest task counter so reference numbers never collide
         let maxRef = 1000;
@@ -895,4 +911,113 @@ export const pushPrefRepo = {
     return updated;
   },
 };
+
+// ============================================================
+// MEETING REPOSITORY
+// ============================================================
+
+export const meetingRepo = {
+  findAll(): Meeting[] {
+    return store.meetings || [];
+  },
+
+  findById(id: string): Meeting | undefined {
+    return (store.meetings || []).find((m) => m.id === id);
+  },
+
+  findByStatusRequest(statusRequestId: string): Meeting | undefined {
+    return (store.meetings || []).find((m) => m.statusRequestId === statusRequestId);
+  },
+
+  async fetchFromCloudByStatusRequest(statusRequestId: string): Promise<Meeting | undefined> {
+    try {
+      const results = await firestoreDb.queryByField('meetings', 'statusRequestId', statusRequestId);
+      if (results.length > 0) {
+        const cloudMeeting = results[0] as Meeting;
+        const existingIdx = (store.meetings || []).findIndex((m) => m.id === cloudMeeting.id);
+        if (existingIdx !== -1) {
+          store.meetings[existingIdx] = cloudMeeting;
+        } else {
+          if (!store.meetings) store.meetings = [];
+          store.meetings.push(cloudMeeting);
+        }
+        persistSnapshot();
+        return cloudMeeting;
+      }
+    } catch (err) {
+      console.debug('Cloud meeting query notice:', err);
+    }
+    return undefined;
+  },
+
+  async create(data: Omit<Meeting, 'id' | 'createdAt' | 'updatedAt'>): Promise<Meeting> {
+    const now = new Date().toISOString();
+    const meeting: Meeting = {
+      ...data,
+      id: newId(),
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (!store.meetings) store.meetings = [];
+    store.meetings.push(meeting);
+    persistSnapshot();
+    await syncToFirestore('meetings', meeting.id, meeting);
+    return meeting;
+  },
+
+  async update(id: string, data: Partial<Meeting>): Promise<Meeting | undefined> {
+    if (!store.meetings) store.meetings = [];
+    const idx = store.meetings.findIndex((m) => m.id === id);
+    if (idx === -1) return undefined;
+
+    const updated: Meeting = {
+      ...store.meetings[idx],
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+    store.meetings[idx] = updated;
+    persistSnapshot();
+    await syncToFirestore('meetings', id, updated);
+    return updated;
+  },
+};
+
+// ============================================================
+// GOOGLE AUTH TOKENS REPOSITORY
+// ============================================================
+
+export const googleAuthRepo = {
+  getTokens(userId: string): GoogleAuthTokens | undefined {
+    if (!store.googleAuthTokens) store.googleAuthTokens = {};
+    if (store.googleAuthTokens[userId]) return store.googleAuthTokens[userId];
+    const all = Object.values(store.googleAuthTokens).filter((t) => t && t.accessToken);
+    return all.length > 0 ? all[0] : undefined;
+  },
+
+  getAllTokens(): GoogleAuthTokens[] {
+    if (!store.googleAuthTokens) return [];
+    return Object.values(store.googleAuthTokens).filter((t) => t && t.accessToken);
+  },
+
+  async saveTokens(tokens: GoogleAuthTokens): Promise<GoogleAuthTokens> {
+    if (!store.googleAuthTokens) store.googleAuthTokens = {};
+    store.googleAuthTokens[tokens.userId] = tokens;
+    persistSnapshot();
+    await syncToFirestore('googleAuthTokens', tokens.userId, tokens);
+    return tokens;
+  },
+
+  async clearTokens(userId: string): Promise<void> {
+    if (store.googleAuthTokens && store.googleAuthTokens[userId]) {
+      delete store.googleAuthTokens[userId];
+      persistSnapshot();
+      try {
+        await firestoreDb.docSet('googleAuthTokens', userId, { userId, disconnected: true, updatedAt: new Date().toISOString() });
+      } catch (e) {
+        console.warn('Could not clear googleAuthTokens in cloud:', e);
+      }
+    }
+  },
+};
+
 

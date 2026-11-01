@@ -13,6 +13,7 @@ import {
   User,
   Users,
   Bell,
+  Video,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Card } from '../../components/ui/Card';
@@ -22,6 +23,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Textarea } from '../../components/ui/Textarea';
 import { PageLoader } from '../../components/ui/LoadingSpinner';
 import { taskApi, statusRequestApi, queryApi, chatApi, reminderApi } from '../../services/api';
+import { GoogleMeetCard } from '../../components/meetings/GoogleMeetCard';
 import { formatDate, formatDateTime, formatRelative, isOverdue } from '../../utils/formatDate';
 import {
   getStatusColors,
@@ -47,6 +49,12 @@ export function TaskDetailPage() {
   const [selectedQuestion, setSelectedQuestion] = useState('What is the current update?');
   const [customQuestion, setCustomQuestion] = useState('');
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
+
+  // Google Meet scheduling inside modal
+  const [includeMeet, setIncludeMeet] = useState(false);
+  const [meetDate, setMeetDate] = useState('');
+  const [meetTime, setMeetTime] = useState('');
+  const [meetDescription, setMeetDescription] = useState('');
 
   // Chat message input
   const [chatInput, setChatInput] = useState('');
@@ -204,8 +212,14 @@ export function TaskDetailPage() {
   const priorityColors = getPriorityColors(task.priority);
   const overdue = isOverdue(task.deadline) && task.status !== 'approved';
 
+  const TODAY_ISO = new Date().toISOString().split('T')[0];
+
   const handleOpenStatusRequest = () => {
     setSelectedRecipients(task.members.map((m) => m.userId));
+    setIncludeMeet(false);
+    setMeetDate('');
+    setMeetTime('');
+    setMeetDescription('');
     setStatusReqModalOpen(true);
   };
 
@@ -214,6 +228,10 @@ export function TaskDetailPage() {
     sendStatusReqMutation.mutate({
       question: q,
       recipientUserIds: selectedRecipients,
+      includeMeet,
+      meetDate: includeMeet ? meetDate : undefined,
+      meetTime: includeMeet ? meetTime : undefined,
+      meetDescription: includeMeet ? meetDescription : undefined,
     });
   };
 
@@ -670,6 +688,9 @@ export function TaskDetailPage() {
                       </div>
                     </div>
 
+                    {/* Google Meet Section */}
+                    <GoogleMeetCard statusRequest={sr} isAdmin={true} />
+
                     {/* Responses */}
                     {sr.responses && sr.responses.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-[#E4E8EF] space-y-2">
@@ -915,6 +936,59 @@ export function TaskDetailPage() {
                   </label>
                 ))}
               </div>
+            </div>
+
+            <div className="p-3 bg-[#F9FBFF] rounded-xl border border-[#B8DDFB] space-y-3">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-[#172033]">
+                <input
+                  type="checkbox"
+                  checked={includeMeet}
+                  onChange={(e) => setIncludeMeet(e.target.checked)}
+                  className="text-[#3157A4] rounded w-4 h-4"
+                />
+                <Video size={16} className="text-[#3157A4]" />
+                <span>Google Meet Integration: Generate link & schedule IST meeting time</span>
+              </label>
+
+              {includeMeet && (
+                <div className="space-y-3 pt-2 border-t border-[#B8DDFB]/60 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-[#172033] block mb-1">
+                        Meeting Date (IST) *
+                      </label>
+                      <input
+                        type="date"
+                        value={meetDate}
+                        onChange={(e) => setMeetDate(e.target.value)}
+                        min={TODAY_ISO}
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-[#E4E8EF] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3157A4]"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-[#172033] block mb-1">
+                        Meeting Start Time (IST) *
+                      </label>
+                      <input
+                        type="time"
+                        value={meetTime}
+                        onChange={(e) => setMeetTime(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-[#E4E8EF] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3157A4]"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <Textarea
+                    label="Optional Agenda / Discussion Notes"
+                    placeholder="e.g. Review deliverable blockers and confirm revision timeline..."
+                    value={meetDescription}
+                    onChange={(e) => setMeetDescription(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </Modal>

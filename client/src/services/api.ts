@@ -186,3 +186,26 @@ export const pushApi = {
   sendTestPush: () => api.post<ApiResponse>('/push/test'),
 };
 
+// Google Meet & OAuth API
+export const meetingApi = {
+  getGoogleStatus: () => api.get<ApiResponse>('/admin/google/status'),
+  getAuthUrl: () => api.get<ApiResponse>('/admin/google/auth-url'),
+  connectManual: (data: { email?: string; accessToken?: string }) =>
+    api.post<ApiResponse>('/admin/google/connect-manual', data),
+  disconnectGoogle: () => api.post<ApiResponse>('/admin/google/disconnect'),
+  createMeeting: (requestId: string) =>
+    api.post<ApiResponse>(`/admin/status-requests/${requestId}/meetings`),
+  scheduleMeeting: (
+    requestId: string,
+    data: { date: string; time: string; description?: string }
+  ) => api.post<ApiResponse>(`/admin/status-requests/${requestId}/meetings/schedule`, data),
+  rescheduleMeeting: (
+    requestId: string,
+    data: { date?: string; time?: string; description?: string }
+  ) => api.patch<ApiResponse>(`/admin/status-requests/${requestId}/meetings`, data),
+  cancelMeeting: (requestId: string) =>
+    api.post<ApiResponse>(`/admin/status-requests/${requestId}/meetings/cancel`),
+  getMeetingByRequest: (requestId: string) =>
+    api.get<ApiResponse>(`/status-requests/${requestId}/meeting`),
+};
+

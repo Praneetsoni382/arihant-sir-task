@@ -169,5 +169,17 @@ export const notifTemplates = {
       body: `The task "${taskName}" has been updated.`,
     };
   },
+  meetingScheduled(reqTitle: string, dateStr: string, timeStr: string): { title: string; body: string } {
+    return {
+      title: 'Google Meet Scheduled',
+      body: `Your administrator has scheduled a Google Meet discussion for your status request '${reqTitle}' on ${dateStr} at ${timeStr} IST. Open TaskFlow to view the meeting details and join.`,
+    };
+  },
+  meetingCancelled(reqTitle: string): { title: string; body: string } {
+    return {
+      title: 'Google Meet Cancelled',
+      body: `The scheduled Google Meet discussion for status request '${reqTitle}' has been cancelled by your administrator.`,
+    };
+  },
 };
 

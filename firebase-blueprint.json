@@ -229,6 +229,29 @@
         "createdAt": { "type": "string" }
       },
       "required": ["eventId", "actorUserId", "entityType", "entityId", "eventType", "createdAt"]
+    },
+    "Meeting": {
+      "title": "Meeting",
+      "description": "Google Meet space and scheduled meeting details associated with a Status Request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "statusRequestId": { "type": "string", "maxLength": 128 },
+        "taskId": { "type": "string", "maxLength": 128 },
+        "createdByAdminUid": { "type": "string", "maxLength": 128 },
+        "googleSpaceName": { "type": "string", "maxLength": 256 },
+        "meetingUri": { "type": "string", "maxLength": 1024 },
+        "meetingTitle": { "type": "string", "maxLength": 512 },
+        "description": { "type": "string", "maxLength": 2048 },
+        "status": { "type": "string", "enum": ["draft", "scheduled", "cancelled"] },
+        "createdAt": { "type": "string" },
+        "scheduledAt": { "type": "string" },
+        "timezone": { "type": "string", "maxLength": 64 },
+        "publishedAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "cancelledAt": { "type": "string" }
+      },
+      "required": ["id", "statusRequestId", "taskId", "createdByAdminUid", "meetingUri", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -295,6 +318,10 @@
     "/auditEvents/{eventId}": {
       "schema": "AuditEvent",
       "description": "System-wide immutable audit trail"
+    },
+    "/meetings/{meetingId}": {
+      "schema": "Meeting",
+      "description": "Google Meet scheduled spaces associated with status requests"
     }
   }
 }
