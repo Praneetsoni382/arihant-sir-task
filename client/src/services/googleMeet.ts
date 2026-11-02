@@ -1,6 +1,5 @@
 import {
   GoogleAuthProvider,
-  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   onAuthStateChanged,
@@ -14,7 +13,6 @@ export const MEET_SCOPE = 'https://www.googleapis.com/auth/meetings.space.create
 // In-memory token cache as mandated by workspace-integration guidelines
 let cachedAccessToken: string | null = null;
 let cachedUserEmail: string | null = null;
-let isAuthorizing = false;
 
 // Clear cached token on Firebase auth state changes
 onAuthStateChanged(auth, (user: User | null) => {
@@ -73,58 +71,16 @@ export async function getGoogleMeetAccessToken(interactive = true): Promise<{
     return null;
   }
 
-  if (isAuthorizing) {
-    await new Promise((r) => setTimeout(r, 500));
-    if (cachedAccessToken) {
-      return { accessToken: cachedAccessToken, email: cachedUserEmail || '' };
-    }
-  }
+  const provider = new GoogleAuthProvider();
+  provider.addScope(MEET_SCOPE);
+  provider.addScope('https://www.googleapis.com/auth/userinfo.email');
+  provider.setCustomParameters({
+    prompt: 'select_account',
+  });
 
-  try {
-    isAuthorizing = true;
-    const provider = new GoogleAuthProvider();
-    provider.addScope(MEET_SCOPE);
-    provider.addScope('https://www.googleapis.com/auth/userinfo.email');
-    provider.setCustomParameters({
-      prompt: 'select_account',
-    });
-
-    let result: any = null;
-    try {
-      result = await signInWithPopup(auth, provider);
-    } catch (popupErr: any) {
-      if (popupErr?.code === 'auth/popup-blocked') {
-        console.warn('Popup blocked by browser, executing signInWithRedirect fallback');
-        await signInWithRedirect(auth, provider);
-        return null;
-      }
-      throw popupErr;
-    }
-
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    const token = credential?.accessToken;
-
-    if (!token) {
-      throw new Error('Google authorization succeeded but no access token was returned for Google Meet.');
-    }
-
-    cachedAccessToken = token;
-    cachedUserEmail = result.user.email || '';
-
-    // Synchronize token with backend repository for server-side REST API calls
-    try {
-      await meetingApi.connectManual({
-        email: cachedUserEmail || undefined,
-        accessToken: cachedAccessToken || undefined,
-      });
-    } catch (syncErr) {
-      console.warn('Backend token synchronization notice:', syncErr);
-    }
-
-    return { accessToken: cachedAccessToken || '', email: cachedUserEmail || '' };
-  } finally {
-    isAuthorizing = false;
-  }
+  // Initiate redirect flow to avoid cross-origin popup restrictions in production
+  await signInWithRedirect(auth, provider);
+  return null;
 }
 
 export interface GoogleMeetSpaceResult {

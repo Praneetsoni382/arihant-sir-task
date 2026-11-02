@@ -11,7 +11,13 @@ try {
   // ignore
 }
 
-export const app = initializeApp(firebaseConfig);
+const currentHost = typeof window !== 'undefined' && window.location.host ? window.location.host : '';
+const dynamicConfig = {
+  ...firebaseConfig,
+  authDomain: currentHost || firebaseConfig.authDomain,
+};
+
+export const app = initializeApp(dynamicConfig);
 
 // Initialize Firestore with long-polling to prevent gRPC Listen/Write stream NOT_FOUND errors in iframe previews
 let firestoreDb: Firestore;
