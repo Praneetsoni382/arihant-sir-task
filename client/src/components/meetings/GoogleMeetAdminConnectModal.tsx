@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Video, CheckCircle2, AlertTriangle, Unlink, Zap } from 'lucide-react';
+import { Video, CheckCircle2, AlertTriangle, Unlink } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { meetingApi } from '../../services/api';
@@ -39,21 +39,6 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
     },
   });
 
-  const handleQuickConnect = async () => {
-    setConnectError('');
-    setIsConnecting(true);
-    try {
-      await meetingApi.connectManual({
-        email: connectedEmail || 'neurotantraa@gmail.com',
-      });
-      queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
-    } catch (err: any) {
-      setConnectError(err?.message || 'Failed to connect admin account');
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
   const handleConnectOAuth = async () => {
     setConnectError('');
     setIsConnecting(true);
@@ -69,15 +54,15 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
       const errMsg = popupErr?.message || popupErr?.code || '';
       if (errMsg.includes('popup-closed-by-user') || popupErr?.code === 'auth/popup-closed-by-user') {
         setConnectError(
-          'Sign-in Popup Closed: The Google authorization popup window was closed before finishing account selection. Click "Quick Connect (Instant)" below for immediate authorization, or try "Connect with Google" again.'
+          'Sign-in Popup Closed: The Google authorization popup window was closed before completing account selection. Please click "Connect with Google" again and select your Google account.'
         );
       } else if (errMsg.includes('popup-blocked') || popupErr?.code === 'auth/popup-blocked') {
         setConnectError(
-          'Popup Blocked: Your browser blocked the Google Sign-in popup. Use "Quick Connect (Instant)" below for 1-click production authorization, or allow pop-ups in your browser URL bar.'
+          'Popup Blocked: Your browser blocked the Google Sign-in popup. Please allow pop-ups for this site in your browser address bar and try again.'
         );
       } else if (errMsg.includes('unauthorized-domain') || popupErr?.code === 'auth/unauthorized-domain') {
         setConnectError(
-          'Firebase Auth Domain Notice: Your production domain is not added to Firebase Authorized Domains. Use "Quick Connect (Instant)" below to connect immediately without domain restrictions, or add your domain under Firebase Console > Authentication > Settings > Authorized domains.'
+          'Firebase Auth Domain Notice: Your current production domain is not added to Firebase Authorized Domains. Go to Firebase Console > Authentication > Settings > Authorized domains and add your deployed app domain.'
         );
       } else {
         setConnectError(errMsg || 'Google authorization was cancelled or failed.');
@@ -88,7 +73,7 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
   };
 
   const isConnected = statusData?.isConnected;
-  const connectedEmail = statusData?.connectedEmail || 'neurotantraa@gmail.com';
+  const connectedEmail = statusData?.connectedEmail || 'admin@company.com';
 
   return (
     <Modal
@@ -136,27 +121,14 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
               Disconnect
             </Button>
           ) : (
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                size="sm"
-                onClick={handleConnectOAuth}
-                loading={isConnecting}
-                className="bg-[#3157A4] hover:bg-[#264482] text-xs"
-              >
-                <Zap size={13} />
-                Connect with Google
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleQuickConnect}
-                loading={isConnecting}
-                className="text-xs text-[#16865B] border-[#A8DFC5] hover:bg-[#EDFAF4]"
-              >
-                <CheckCircle2 size={13} />
-                Quick Connect
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              onClick={handleConnectOAuth}
+              loading={isConnecting}
+              className="bg-[#3157A4] hover:bg-[#264482] text-xs shrink-0 font-bold"
+            >
+              Connect with Google
+            </Button>
           )}
         </div>
 
@@ -167,48 +139,27 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
               Authorization Notice
             </span>
             <p className="text-[11px] leading-relaxed">{connectError}</p>
-            <div className="pt-1">
-              <Button
-                size="sm"
-                onClick={handleQuickConnect}
-                loading={isConnecting}
-                className="bg-[#16865B] hover:bg-[#126b48] text-white text-xs font-bold"
-              >
-                <CheckCircle2 size={13} />
-                Activate Quick Connect Now (Bypass Popup Restriction)
-              </Button>
-            </div>
           </div>
         )}
 
-        {/* 1-Click Quick Connect Banner when not connected */}
+        {/* Workspace Authorization Instructions */}
         {!isConnected && (
           <div className="p-4 bg-[#F0F9FF] rounded-xl border border-[#B8DDFB] space-y-3 text-xs">
             <div className="flex items-center gap-2 font-bold text-[#3157A4]">
-              <Zap size={16} />
+              <Video size={16} />
               <span>Official Google Meet Workspace Authorization</span>
             </div>
             <p className="text-[#667085] leading-relaxed">
-              Connect your administrator account using Google Sign-in to generate genuine Google Meet discussion rooms via the official Google Meet REST API v2. Both you and your employees will join the exact same live room.
+              Connect your Google Workspace or Gmail account to generate genuine Google Meet discussion rooms via the official Google Meet REST API v2 (`meet.googleapis.com`). All meeting spaces are set to open access (`accessType: 'OPEN'`) so administrators and employees join the exact same live room without host admission delays.
             </p>
-            <div className="flex flex-wrap items-center gap-2">
+            <div>
               <Button
                 size="sm"
                 onClick={handleConnectOAuth}
                 loading={isConnecting}
                 className="bg-[#3157A4] hover:bg-[#264482] text-xs font-bold"
               >
-                <Zap size={14} />
                 Authorize via Google Sign-in
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleQuickConnect}
-                loading={isConnecting}
-                className="bg-[#16865B] hover:bg-[#126b48] text-xs font-bold"
-              >
-                <CheckCircle2 size={14} />
-                Instant 1-Click Quick Connect
               </Button>
             </div>
           </div>
@@ -217,13 +168,19 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
         <div className="p-3 bg-[#FFF8E7] rounded-lg border border-[#F5D87E] text-xs space-y-1.5">
           <div className="font-bold text-[#C58A20] flex items-center gap-1.5">
             <AlertTriangle size={14} />
-            <span>Google Cloud OAuth Setup Note</span>
+            <span>Production Deployment & Domain Whitelisting Note</span>
           </div>
           <p className="text-[#667085] leading-relaxed text-[11px]">
-            The <code className="bg-white px-1 py-0.5 rounded text-[10px] text-[#172033]">Missing required parameter: client_id</code> error occurs when opening standard Google OAuth consent without setting <code className="bg-white px-1 py-0.5 rounded text-[10px] text-[#172033]">GOOGLE_CLIENT_ID</code> in environment variables. Use <strong>Quick Connect</strong> above for immediate preview authorization, or supply your Google Cloud Client ID in server configuration.
+            If Google authentication fails in production with an authorization or popup message:
           </p>
+          <ul className="list-disc pl-4 text-[11px] text-[#667085] space-y-1">
+            <li>Ensure popups are allowed for your app's domain in your browser address bar.</li>
+            <li>In Firebase Console, go to <strong>Authentication &gt; Settings &gt; Authorized domains</strong> and add your production domain (e.g., your app's hosting domain).</li>
+            <li>If using Google Cloud OAuth Client ID, ensure your production domain is listed under <strong>Authorized JavaScript origins</strong> in Google Cloud Console.</li>
+          </ul>
         </div>
       </div>
     </Modal>
   );
 }
+

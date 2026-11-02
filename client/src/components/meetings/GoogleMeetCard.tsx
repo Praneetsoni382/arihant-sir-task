@@ -75,7 +75,22 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
       queryClient.invalidateQueries({ queryKey: ['status-requests'] });
     } catch (err: any) {
       console.error('Failed to create real Google Meet space:', err);
-      setCreationError(err?.response?.data?.error || err?.message || 'Failed to create real Google Meet space');
+      const msg = err?.response?.data?.error || err?.message || err?.code || '';
+      if (msg.includes('popup-closed-by-user') || err?.code === 'auth/popup-closed-by-user') {
+        setCreationError(
+          'Google Sign-in popup was closed before completing authorization. Please click "Create Meet Link" again and choose your Google account to grant Meet space creation access.'
+        );
+      } else if (msg.includes('popup-blocked') || err?.code === 'auth/popup-blocked') {
+        setCreationError(
+          'Popup Blocked: Your browser blocked the Google Sign-in popup. Please enable pop-ups for this domain in your address bar and try again.'
+        );
+      } else if (msg.includes('unauthorized-domain') || err?.code === 'auth/unauthorized-domain') {
+        setCreationError(
+          'Firebase Domain Authorization Notice: Your production website domain must be added under Firebase Console > Authentication > Settings > Authorized domains.'
+        );
+      } else {
+        setCreationError(msg || 'Failed to create real Google Meet space.');
+      }
     } finally {
       setIsCreatingMeet(false);
     }
