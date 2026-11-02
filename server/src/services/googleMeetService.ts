@@ -6,7 +6,9 @@
 import { googleAuthRepo } from '../repositories/inMemoryStore.js';
 import type { GoogleAuthTokens } from '../types/index.js';
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID =
+  process.env.GOOGLE_CLIENT_ID ||
+  '1088662376372-itpkdjisgp3r6pilfn0a216c758p9n78.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const GOOGLE_REDIRECT_URI =
   process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/admin/google/callback';
@@ -14,10 +16,11 @@ const GOOGLE_REDIRECT_URI =
 export const MEET_SCOPE = 'https://www.googleapis.com/auth/meetings.space.created';
 export const EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email';
 
-export function getGoogleOAuthUrl(stateStr: string = 'taskflow_meet'): string {
+export function getGoogleOAuthUrl(stateStr: string = 'taskflow_meet', dynamicRedirectUri?: string): string {
+  const redirectUri = dynamicRedirectUri || GOOGLE_REDIRECT_URI;
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: GOOGLE_REDIRECT_URI,
+    redirect_uri: redirectUri,
     response_type: 'code',
     scope: `${MEET_SCOPE} ${EMAIL_SCOPE}`,
     access_type: 'offline',

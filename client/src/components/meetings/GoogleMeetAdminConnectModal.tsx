@@ -18,6 +18,8 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
   const { data: statusData, isLoading } = useQuery({
     queryKey: ['admin-google-status'],
     queryFn: async () => {
+      const { getGoogleMeetAccessToken } = await import('../../services/googleMeet');
+      await getGoogleMeetAccessToken(false);
       const res = await meetingApi.getGoogleStatus();
       return res.data?.data as {
         isConnected: boolean;

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Google Authorization Callback</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f8fafd;
+      color: #172033;
+    }
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      text-align: center;
+      max-width: 360px;
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid #e4e8ef;
+      border-top-color: #3157a4;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h3 style="margin:0 0 8px; font-size:14px; font-weight:700;">Connecting Google Account...</h3>
+    <p style="margin:0; font-size:12px; color:#667085;">Completing Google Meet API authorization...</p>
+  </div>
+  <script>
+    (async function() {
+      try {
+        const hash = window.location.hash || '';
+        const search = window.location.search || '';
+        const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : search);
+        
+        const accessToken = params.get('access_token');
+        let email = params.get('email') || '';
+
+        if (accessToken) {
+          if (!email) {
+            try {
+              const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { Authorization: `Bearer ${accessToken}` }
+              });
+              if (res.ok) {
+                const data = await res.json();
+                email = data.email || '';
+              }
+            } catch (e) {
+              console.warn('Could not fetch userinfo in callback:', e);
+            }
+          }
+
+          const payload = {
+            type: 'GOOGLE_MEET_AUTH_SUCCESS',
+            accessToken: accessToken,
+            email: email
+          };
+
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(payload, '*');
+            setTimeout(() => { window.close(); }, 100);
+          } else {
+            sessionStorage.setItem('google_meet_access_token', accessToken);
+            if (email) sessionStorage.setItem('google_meet_email', email);
+            window.location.href = window.location.origin + '/#/admin/status-requests?google_connected=true';
+          }
+        } else {
+          const err = params.get('error') || 'No access token found in response';
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type: 'GOOGLE_MEET_AUTH_ERROR', error: err }, '*');
+            setTimeout(() => { window.close(); }, 100);
+          } else {
+            window.location.href = window.location.origin + '/#/admin/status-requests?oauth_error=' + encodeURIComponent(err);
+          }
+        }
+      } catch (err) {
+        console.error('Callback handler error:', err);
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: 'GOOGLE_MEET_AUTH_ERROR', error: String(err) }, '*');
+          setTimeout(() => { window.close(); }, 100);
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
