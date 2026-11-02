@@ -74,6 +74,19 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
     }
   };
 
+  const handleQuickConnect = async () => {
+    setConnectError('');
+    setIsConnecting(true);
+    try {
+      await meetingApi.connectManual({});
+      queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
+    } catch (err: any) {
+      setConnectError(err?.message || 'Quick connect failed');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   const isConnected = statusData?.isConnected;
   const connectedEmail = statusData?.connectedEmail || 'admin@company.com';
 
@@ -123,14 +136,16 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
               Disconnect
             </Button>
           ) : (
-            <Button
-              size="sm"
-              onClick={handleConnectOAuth}
-              loading={isConnecting}
-              className="bg-[#3157A4] hover:bg-[#264482] text-xs shrink-0 font-bold"
-            >
-              Connect with Google
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                onClick={handleConnectOAuth}
+                loading={isConnecting}
+                className="bg-[#3157A4] hover:bg-[#264482] text-xs font-bold"
+              >
+                Connect with Google
+              </Button>
+            </div>
           )}
         </div>
 
@@ -154,7 +169,7 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
             <p className="text-[#667085] leading-relaxed">
               Connect your Google Workspace or Gmail account to generate genuine Google Meet discussion rooms via the official Google Meet REST API v2 (`meet.googleapis.com`). All meeting spaces are set to open access (`accessType: 'OPEN'`) so administrators and employees join the exact same live room without host admission delays.
             </p>
-            <div>
+            <div className="flex items-center gap-2 pt-1">
               <Button
                 size="sm"
                 onClick={handleConnectOAuth}
@@ -162,6 +177,15 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
                 className="bg-[#3157A4] hover:bg-[#264482] text-xs font-bold"
               >
                 Authorize via Google Sign-in
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleQuickConnect}
+                loading={isConnecting}
+                className="text-xs text-[#3157A4] border-[#B8DDFB] hover:bg-[#EBF3FF]"
+              >
+                Quick Connect (Instant Authorization)
               </Button>
             </div>
           </div>
