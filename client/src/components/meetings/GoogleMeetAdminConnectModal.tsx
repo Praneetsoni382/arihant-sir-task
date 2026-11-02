@@ -52,7 +52,15 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
     } catch (popupErr: any) {
       console.warn('Google Meet connection error:', popupErr);
       const errMsg = popupErr?.message || popupErr?.code || '';
-      if (errMsg.includes('unauthorized-domain') || popupErr?.code === 'auth/unauthorized-domain') {
+      if (errMsg.includes('popup-closed-by-user') || popupErr?.code === 'auth/popup-closed-by-user') {
+        setConnectError(
+          'Sign-in Popup Closed: The Google authorization popup window was closed before finishing account selection. Please click "Connect with Google" again, choose your Google account, and click "Allow".'
+        );
+      } else if (errMsg.includes('popup-blocked') || popupErr?.code === 'auth/popup-blocked') {
+        setConnectError(
+          'Popup Blocked: Your browser blocked the Google Sign-in popup. Please allow pop-ups for this site in your browser URL bar and try again.'
+        );
+      } else if (errMsg.includes('unauthorized-domain') || popupErr?.code === 'auth/unauthorized-domain') {
         setConnectError(
           'Firebase Auth Domain Notice: Your production domain is not added to Firebase Authorized Domains. To fix this, go to Firebase Console > Authentication > Settings > Authorized domains, and click "Add domain" to enter your deployed website domain.'
         );
