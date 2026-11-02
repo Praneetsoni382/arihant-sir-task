@@ -51,7 +51,14 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
       queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
     } catch (popupErr: any) {
       console.warn('Google Meet connection error:', popupErr);
-      setConnectError(popupErr?.message || 'Google authorization was cancelled or failed.');
+      const errMsg = popupErr?.message || popupErr?.code || '';
+      if (errMsg.includes('unauthorized-domain') || popupErr?.code === 'auth/unauthorized-domain') {
+        setConnectError(
+          'Firebase Auth Domain Notice: Your production domain is not added to Firebase Authorized Domains. To fix this, go to Firebase Console > Authentication > Settings > Authorized domains, and click "Add domain" to enter your deployed website domain.'
+        );
+      } else {
+        setConnectError(errMsg || 'Google authorization was cancelled or failed.');
+      }
     } finally {
       setIsConnecting(false);
     }
