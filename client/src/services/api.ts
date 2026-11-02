@@ -14,34 +14,51 @@ const api = axios.create({
   },
 });
 
-// Request interceptor: attach Firebase ID token or stored auth token
+// Request interceptor: ALWAYS attach the authoritative TaskFlow user token first
 api.interceptors.request.use(async (config) => {
-  if (auth.currentUser) {
-    try {
-      const token = await auth.currentUser.getIdToken();
-      config.headers.Authorization = `Bearer ${token}`;
-      return config;
-    } catch {
-      // Continue with stored token
-    }
-  }
   const token = localStorage.getItem('auth_token');
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    if (typeof config.headers.set === 'function') {
+      config.headers.set('Authorization', `Bearer ${token}`);
+    } else {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  }
+
+  // Fallback to Firebase ID token only if no primary TaskFlow session token exists
+  if (auth.currentUser) {
+    try {
+      const firebaseToken = await auth.currentUser.getIdToken();
+      if (firebaseToken) {
+        if (typeof config.headers.set === 'function') {
+          config.headers.set('Authorization', `Bearer ${firebaseToken}`);
+        } else {
+          config.headers.Authorization = `Bearer ${firebaseToken}`;
+        }
+      }
+    } catch {
+      // Continue without token
+    }
   }
   return config;
 });
 
-// Response interceptor: unwrap data or throw
+// Response interceptor: unwrap data or safely handle session expiration without redirect loops
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      // Redirect to login if session expired (but not on login page itself)
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
+      const requestUrl = error.config?.url || '';
+      const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/me');
+
+      // Do NOT wipe storage or redirect if the 401 came from an initial session check or login attempt
+      if (!isAuthEndpoint) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);
@@ -193,8 +210,10 @@ export const meetingApi = {
   connectManual: (data: { email?: string; accessToken?: string }) =>
     api.post<ApiResponse>('/admin/google/connect-manual', data),
   disconnectGoogle: () => api.post<ApiResponse>('/admin/google/disconnect'),
-  createMeeting: (requestId: string) =>
-    api.post<ApiResponse>(`/admin/status-requests/${requestId}/meetings`),
+  createMeeting: (
+    requestId: string,
+    data?: { accessToken?: string; meetingUri?: string; googleSpaceName?: string; meetingCode?: string }
+  ) => api.post<ApiResponse>(`/admin/status-requests/${requestId}/meetings`, data || {}),
   scheduleMeeting: (
     requestId: string,
     data: { date: string; time: string; description?: string }

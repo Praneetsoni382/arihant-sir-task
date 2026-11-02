@@ -12,7 +12,8 @@ interface Props {
 
 export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
   const queryClient = useQueryClient();
-  const [manualEmail, setManualEmail] = useState('neurotantraa@gmail.com');
+  const [connectError, setConnectError] = useState('');
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const { data: statusData, isLoading } = useQuery({
     queryKey: ['admin-google-status'],
@@ -28,36 +29,31 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
   });
 
   const disconnectMutation = useMutation({
-    mutationFn: () => meetingApi.disconnectGoogle(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
+    mutationFn: async () => {
+      const { clearGoogleTokenCache } = await import('../../services/googleMeet');
+      clearGoogleTokenCache();
+      return meetingApi.disconnectGoogle();
     },
-  });
-
-  const manualConnectMutation = useMutation({
-    mutationFn: (email: string) => meetingApi.connectManual({ email }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
     },
   });
 
   const handleConnectOAuth = async () => {
+    setConnectError('');
+    setIsConnecting(true);
     try {
-      const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth');
-      const { auth } = await import('../../firebase');
-      const provider = new GoogleAuthProvider();
-      provider.addScope('https://www.googleapis.com/auth/meetings.space.created');
-
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const accessToken = credential?.accessToken;
-      const email = result.user.email || manualEmail || 'neurotantraa@gmail.com';
-
-      await meetingApi.connectManual({ email, accessToken });
+      const { getGoogleMeetAccessToken } = await import('../../services/googleMeet');
+      const authData = await getGoogleMeetAccessToken(true);
+      if (!authData?.accessToken) {
+        throw new Error('Google authorization was cancelled or access token is missing.');
+      }
       queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
-    } catch (popupErr) {
-      console.warn('Firebase OAuth popup notice:', popupErr);
-      manualConnectMutation.mutate(manualEmail || 'neurotantraa@gmail.com');
+    } catch (popupErr: any) {
+      console.warn('Google Meet connection error:', popupErr);
+      setConnectError(popupErr?.message || 'Google authorization was cancelled or failed.');
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -113,43 +109,44 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
             <Button
               size="sm"
               onClick={handleConnectOAuth}
-              loading={manualConnectMutation.isPending}
+              loading={isConnecting}
               className="bg-[#3157A4] hover:bg-[#264482] text-xs shrink-0"
             >
               <Zap size={13} />
-              Quick Connect
+              Connect with Google
             </Button>
           )}
         </div>
+
+        {connectError && (
+          <div className="p-3 bg-[#FFF0F0] text-[#D64545] rounded-xl border border-[#F5B8B8] text-xs space-y-1">
+            <span className="font-bold flex items-center gap-1.5">
+              <AlertTriangle size={14} />
+              Authorization Notice
+            </span>
+            <p className="text-[11px] leading-relaxed">{connectError}</p>
+          </div>
+        )}
 
         {/* 1-Click Quick Connect Banner when not connected */}
         {!isConnected && (
           <div className="p-4 bg-[#F0F9FF] rounded-xl border border-[#B8DDFB] space-y-3 text-xs">
             <div className="flex items-center gap-2 font-bold text-[#3157A4]">
               <Zap size={16} />
-              <span>Instant Administrator Account Connection</span>
+              <span>Official Google Meet Workspace Authorization</span>
             </div>
             <p className="text-[#667085] leading-relaxed">
-              Connect your administrator account instantly to generate genuine Google Meet discussion links and schedule IST meetings on Status Request cards.
+              Connect your administrator account using Google Sign-in to generate genuine Google Meet discussion rooms via the official Google Meet REST API v2. Both you and your employees will join the exact same live room.
             </p>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="email"
-                placeholder="Admin Email (e.g. neurotantraa@gmail.com)"
-                value={manualEmail}
-                onChange={(e) => setManualEmail(e.target.value)}
-                className="flex-1 px-3 py-2 text-xs border border-[#E4E8EF] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3157A4] bg-white"
-              />
-              <Button
-                size="sm"
-                onClick={() => manualConnectMutation.mutate(manualEmail.trim() || 'neurotantraa@gmail.com')}
-                loading={manualConnectMutation.isPending}
-                className="bg-[#16865B] hover:bg-[#126b48] text-xs font-bold"
-              >
-                <CheckCircle2 size={14} />
-                Connect Admin Account
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              onClick={handleConnectOAuth}
+              loading={isConnecting}
+              className="bg-[#16865B] hover:bg-[#126b48] text-xs font-bold w-full sm:w-auto"
+            >
+              <CheckCircle2 size={14} />
+              Authorize Google Meet API Access
+            </Button>
           </div>
         )}
 

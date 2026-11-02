@@ -37,6 +37,9 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
   const [meetingDescription, setMeetingDescription] = useState('');
   const [scheduleError, setScheduleError] = useState('');
 
+  const [creationError, setCreationError] = useState('');
+  const [isCreatingMeet, setIsCreatingMeet] = useState(false);
+
   // Fetch or retrieve meeting associated with status request
   const { data: meeting } = useQuery({
     queryKey: ['status-request-meeting', statusRequest.id],
@@ -47,15 +50,36 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
     refetchInterval: 6000,
   });
 
-  // Create Meet Link Mutation (Admin)
-  const createMeetingMutation = useMutation({
-    mutationFn: () => meetingApi.createMeeting(statusRequest.id),
-    onSuccess: () => {
+  // Create Genuine Meet Link using Google Meet REST API v2
+  const handleCreateRealMeetLink = async () => {
+    setCreationError('');
+    setIsCreatingMeet(true);
+    try {
+      const { getGoogleMeetAccessToken } = await import(
+        '../../services/googleMeet'
+      );
+
+      // 1. Ensure real Google Meet OAuth access token via popup
+      const authData = await getGoogleMeetAccessToken(true);
+      if (!authData?.accessToken) {
+        throw new Error('Google authorization was cancelled or access token is missing.');
+      }
+
+      // 2. Persist & generate genuine space on server via Google Meet REST API v2
+      await meetingApi.createMeeting(statusRequest.id, {
+        accessToken: authData.accessToken,
+      });
+
       queryClient.invalidateQueries({ queryKey: ['status-request-meeting', statusRequest.id] });
       queryClient.invalidateQueries({ queryKey: ['admin-status-requests'] });
       queryClient.invalidateQueries({ queryKey: ['status-requests'] });
-    },
-  });
+    } catch (err: any) {
+      console.error('Failed to create real Google Meet space:', err);
+      setCreationError(err?.response?.data?.error || err?.message || 'Failed to create real Google Meet space');
+    } finally {
+      setIsCreatingMeet(false);
+    }
+  };
 
   // Schedule & Publish Meeting Mutation (Admin)
   const scheduleMeetingMutation = useMutation({
@@ -187,35 +211,47 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
 
       {/* STATE 1: No Meeting Created Yet (Admin View) */}
       {!meeting && isAdmin && (
-        <div className="p-3 bg-[#F9FBFF] rounded-lg border border-[#E4E8EF] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="text-xs text-[#667085]">
-            <p className="font-semibold text-[#172033]">No meeting created yet.</p>
-            <p className="text-[11px] text-[#667085] mt-0.5">
-              Create a genuine Google Meet discussion link, schedule an IST time, and publish it to the employee.
-            </p>
-          </div>
+        <div className="p-3 bg-[#F9FBFF] rounded-lg border border-[#E4E8EF] space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="text-xs text-[#667085]">
+              <p className="font-semibold text-[#172033]">No meeting space created yet.</p>
+              <p className="text-[11px] text-[#667085] mt-0.5">
+                Generate a real Google Meet room via the official Google Meet API, schedule an IST time, and publish it to the employee.
+              </p>
+            </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {onOpenGoogleConnect && (
+            <div className="flex items-center gap-2 shrink-0">
+              {onOpenGoogleConnect && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onOpenGoogleConnect}
+                  className="text-xs text-[#3157A4] border-[#B8D0F5]"
+                >
+                  Google Settings
+                </Button>
+              )}
               <Button
                 size="sm"
-                variant="outline"
-                onClick={onOpenGoogleConnect}
-                className="text-xs text-[#3157A4] border-[#B8D0F5]"
+                onClick={handleCreateRealMeetLink}
+                loading={isCreatingMeet}
+                className="bg-[#3157A4] hover:bg-[#264482] text-xs shrink-0"
               >
-                Google Settings
+                <Plus size={13} />
+                Create Meet Link
               </Button>
-            )}
-            <Button
-              size="sm"
-              onClick={() => createMeetingMutation.mutate()}
-              loading={createMeetingMutation.isPending}
-              className="bg-[#3157A4] hover:bg-[#264482] text-xs shrink-0"
-            >
-              <Plus size={13} />
-              Create Meet Link
-            </Button>
+            </div>
           </div>
+
+          {creationError && (
+            <div className="p-2.5 bg-[#FFF0F0] text-[#D64545] rounded-lg border border-[#F5B8B8] text-xs flex items-start gap-2">
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <span className="font-bold block">Google Meet API Notice</span>
+                <span className="text-[11px] leading-relaxed block">{creationError}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -223,9 +259,14 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
       {meeting && meeting.status === 'draft' && isAdmin && (
         <div className="p-3.5 bg-[#FFFDF5] rounded-xl border border-[#F5D87E] space-y-3">
           <div className="text-xs space-y-1">
-            <span className="text-[10px] font-bold text-[#C58A20] uppercase tracking-wider block">
-              Generated Google Meet Link (Draft State)
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-[#C58A20] uppercase tracking-wider block">
+                Google Meet API Space (Draft State)
+              </span>
+              <span className="text-[10px] text-[#16865B] font-semibold bg-[#EDFAF4] px-1.5 py-0.5 rounded border border-[#A8DFC5]">
+                ✓ Verified Meet API Space
+              </span>
+            </div>
             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-[#E4E8EF] text-xs font-mono text-[#3157A4]">
               <span className="truncate flex-1">{meeting.meetingUri}</span>
               <button
@@ -240,6 +281,17 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
           </div>
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
+            <a
+              href={meeting.meetingUri}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3157A4] hover:bg-[#264482] text-white text-xs font-bold rounded-lg transition-colors shadow-2xs"
+            >
+              <Video size={13} />
+              Test Join Space
+              <ExternalLink size={12} />
+            </a>
+
             <Button
               size="sm"
               onClick={() => {
@@ -249,7 +301,7 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
               className="bg-[#16865B] hover:bg-[#126b48] text-xs"
             >
               <Calendar size={13} />
-              Schedule Meeting
+              Schedule & Publish
             </Button>
             <Button
               size="sm"
@@ -346,8 +398,8 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
             <Button
               size="sm"
               variant="outline"
-              onClick={() => createMeetingMutation.mutate()}
-              loading={createMeetingMutation.isPending}
+              onClick={handleCreateRealMeetLink}
+              loading={isCreatingMeet}
               className="text-xs border-[#F5B8B8] text-[#D64545]"
             >
               New Meet Link

@@ -139,8 +139,23 @@ export interface GoogleMeetSpaceResult {
 export async function createGoogleMeetSpace(
   userId: string,
   customAccessToken?: string,
-  requestId?: string
+  requestId?: string,
+  providedMeetingUri?: string,
+  providedSpaceName?: string
 ): Promise<GoogleMeetSpaceResult> {
+  // 1. If genuine meetingUri was generated directly by the client using Google Meet REST API v2
+  if (providedMeetingUri && typeof providedMeetingUri === 'string' && providedMeetingUri.startsWith('https://meet.google.com/')) {
+    const meetingCode = providedMeetingUri.split('/').pop() || '';
+    const googleSpaceName = providedSpaceName || `spaces/${meetingCode}`;
+    console.log(`✅ Using client-provided genuine Google Meet space: ${providedMeetingUri}`);
+    return {
+      googleSpaceName,
+      meetingUri: providedMeetingUri,
+      meetingCode,
+    };
+  }
+
+  // 2. Obtain valid Google OAuth access token
   let token = customAccessToken || (await getValidAccessToken(userId));
   if (!token || token.startsWith('manual_')) {
     const allTokens = googleAuthRepo.getAllTokens();
@@ -151,70 +166,72 @@ export async function createGoogleMeetSpace(
 
   if (token && !token.startsWith('manual_')) {
     // Official Google Meet REST API Call: POST https://meet.googleapis.com/v2/spaces
-    try {
-      let res = await fetch('https://meet.googleapis.com/v2/spaces', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+    let res = await fetch('https://meet.googleapis.com/v2/spaces', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        config: {
+          accessType: 'OPEN',
         },
-        body: JSON.stringify({}),
-      });
+      }),
+    });
 
-      // Handle 401 Unauthorized by attempting token refresh
-      if (res.status === 401) {
-        const stored = googleAuthRepo.getTokens(userId);
-        if (stored && stored.refreshToken) {
-          try {
-            const refreshed = await refreshAccessToken(stored.userId || userId);
-            if (refreshed) {
-              token = refreshed;
-              res = await fetch('https://meet.googleapis.com/v2/spaces', {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  'Content-Type': 'application/json',
+    // Handle 401 Unauthorized by attempting token refresh
+    if (res.status === 401) {
+      const stored = googleAuthRepo.getTokens(userId);
+      if (stored && stored.refreshToken) {
+        try {
+          const refreshed = await refreshAccessToken(stored.userId || userId);
+          if (refreshed) {
+            token = refreshed;
+            res = await fetch('https://meet.googleapis.com/v2/spaces', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                config: {
+                  accessType: 'OPEN',
                 },
-                body: JSON.stringify({}),
-              });
-            }
-          } catch (rErr) {
-            console.warn('Token refresh during meeting space creation notice:', rErr);
+              }),
+            });
           }
+        } catch (rErr) {
+          console.warn('Token refresh during meeting space creation notice:', rErr);
         }
       }
+    }
 
-      if (res.ok) {
-        const data = await res.json();
-        // Returned schema from official Google Meet REST API:
-        // { name: "spaces/abc-defg-hij", meetingUri: "https://meet.google.com/abc-defg-hij" }
-        const meetingUri = data.meetingUri || `https://meet.google.com/${(data.name || '').replace('spaces/', '')}`;
-        const spaceName = data.name || `spaces/${meetingUri.split('/').pop()}`;
-        const meetingCode = meetingUri.split('/').pop() || '';
+    if (res.ok) {
+      const data = await res.json();
+      // Returned schema from official Google Meet REST API:
+      // { name: "spaces/abc-defg-hij", meetingUri: "https://meet.google.com/abc-defg-hij" }
+      const meetingUri = data.meetingUri || `https://meet.google.com/${(data.name || '').replace('spaces/', '')}`;
+      const spaceName = data.name || `spaces/${meetingUri.split('/').pop()}`;
+      const meetingCode = data.meetingCode || meetingUri.split('/').pop() || '';
 
-        console.log(`✅ Genuine Google Meet space created via REST API: ${meetingUri}`);
+      console.log(`✅ Genuine Google Meet space created via Google Meet REST API: ${meetingUri}`);
 
-        return {
-          googleSpaceName: spaceName,
-          meetingUri,
-          meetingCode,
-        };
-      } else {
-        console.warn('Google Meet API response status:', res.status, await res.text().catch(() => ''));
-      }
-    } catch (apiErr) {
-      console.warn('Google Meet API fetch exception:', apiErr);
+      return {
+        googleSpaceName: spaceName,
+        meetingUri,
+        meetingCode,
+      };
+    } else {
+      const errText = await res.text().catch(() => '');
+      let parsed: any;
+      try { parsed = JSON.parse(errText); } catch {}
+      const errMsg = parsed?.error?.message || errText || `HTTP ${res.status}`;
+      throw new Error(`Google Meet API error (${res.status}): ${errMsg}. A genuine Google Meet link requires authorization with Google Meet permissions.`);
     }
   }
 
-  // Stable persistent meeting URI tied to the request ID so admin & employees join the exact same room
-  const code = requestId ? `tf-${requestId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10)}` : `tf-${Math.random().toString(36).substring(2, 10)}`;
-  const meetingUri = `https://meet.google.com/${code}`;
-  const spaceName = `spaces/${code}`;
-
-  return {
-    googleSpaceName: spaceName,
-    meetingUri,
-    meetingCode: code,
-  };
+  // Under strict requirement: Never fabricate an arbitrary string URL.
+  throw new Error(
+    'Google Meet authorization required: No active Google Meet access token was found. Please connect your Google account with Google Meet permissions to create a genuine meeting link.'
+  );
 }

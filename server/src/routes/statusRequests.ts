@@ -51,7 +51,12 @@ router.get(
       const responses = statusResponseRepo.findByRequest(sr.id);
       const creator = userRepo.findById(sr.createdBy);
       const recipient = userRepo.findById(sr.recipientUserId);
-      let meeting = meetingRepo.findByStatusRequest(sr.id);
+      let meeting = sr.meetingId
+        ? meetingRepo.findById(sr.meetingId)
+        : meetingRepo.findByStatusRequest(sr.id);
+      if (!meeting && task && task.meetingId) {
+        meeting = meetingRepo.findById(task.meetingId);
+      }
       if (meeting && meeting.status === 'draft' && !isAdmin) {
         meeting = undefined;
       }
@@ -153,6 +158,10 @@ taskStatusRequestRouter.post(
       meetDate: z.string().optional().default(''),
       meetTime: z.string().optional().default(''),
       meetDescription: z.string().optional().default(''),
+      accessToken: z.string().optional(),
+      meetingUri: z.string().optional(),
+      googleSpaceName: z.string().optional(),
+      meetingCode: z.string().optional(),
     });
 
     const parse = schema.safeParse(req.body);
@@ -161,9 +170,77 @@ taskStatusRequestRouter.post(
       return;
     }
 
-    const { question, recipientUserIds, responseDeadline, includeMeet, meetDate, meetTime, meetDescription } = parse.data;
+    const {
+      question,
+      recipientUserIds,
+      responseDeadline,
+      includeMeet,
+      meetDate,
+      meetTime,
+      meetDescription,
+      accessToken,
+      meetingUri,
+      googleSpaceName,
+    } = parse.data;
+
     const now = new Date().toISOString();
     const created = [];
+
+    // If Google Meet is requested, generate ONE single genuine space shared across all recipients
+    let sharedMeeting: any = null;
+    let dateFormatted = '';
+    let timeFormatted = '';
+
+    if (includeMeet) {
+      const spaceResult = await createGoogleMeetSpace(
+        req.session.userId!,
+        accessToken,
+        task.id,
+        meetingUri,
+        googleSpaceName
+      );
+
+      let meetingStatus: 'draft' | 'scheduled' = 'draft';
+      let scheduledAtIso: string | null = null;
+      let publishedAtIso: string | null = null;
+
+      if (meetDate && meetTime) {
+        const scheduledDateTimeStr = `${meetDate}T${meetTime}:00`;
+        const dateObj = new Date(scheduledDateTimeStr);
+        if (!isNaN(dateObj.getTime())) {
+          meetingStatus = 'scheduled';
+          scheduledAtIso = dateObj.toISOString();
+          publishedAtIso = now;
+
+          dateFormatted = dateObj.toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          });
+          timeFormatted = dateObj.toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          });
+        }
+      }
+
+      sharedMeeting = await meetingRepo.create({
+        statusRequestId: '', // Will be linked below
+        taskId: task.id,
+        createdByAdminUid: req.session.userId!,
+        googleSpaceName: spaceResult.googleSpaceName,
+        meetingUri: spaceResult.meetingUri,
+        meetingTitle: `Google Meet Discussion: Status Request on ${task.title}`,
+        description: meetDescription,
+        status: meetingStatus,
+        scheduledAt: scheduledAtIso,
+        publishedAt: publishedAtIso,
+        timezone: 'Asia/Kolkata',
+      });
+
+      await taskRepo.update(task.id, { meetingId: sharedMeeting.id });
+    }
 
     for (const userId of recipientUserIds) {
       // Verify the user is a task member
@@ -178,7 +255,16 @@ taskStatusRequestRouter.post(
         status: 'pending',
         createdAt: now,
         responseDeadline: responseDeadline ?? null,
+        meetingId: sharedMeeting ? sharedMeeting.id : undefined,
       });
+
+      if (sharedMeeting) {
+        if (!sharedMeeting.statusRequestId) {
+          sharedMeeting.statusRequestId = sr.id;
+          await meetingRepo.update(sharedMeeting.id, { statusRequestId: sr.id });
+        }
+        (sr as any).meeting = sharedMeeting;
+      }
 
       // Standard status request notification
       const tmpl = notifTemplates.statusRequested(task.title);
@@ -192,62 +278,18 @@ taskStatusRequestRouter.post(
         navigationUrl: `/tasks/${task.id}`,
       });
 
-      // If Google Meet requested, generate and schedule Google Meet space
-      if (includeMeet) {
-        const spaceResult = await createGoogleMeetSpace(req.session.userId!);
-        let meetingStatus: 'draft' | 'scheduled' = 'draft';
-        let scheduledAtIso: string | null = null;
-        let publishedAtIso: string | null = null;
-
-        if (meetDate && meetTime) {
-          const scheduledDateTimeStr = `${meetDate}T${meetTime}:00`;
-          const dateObj = new Date(scheduledDateTimeStr);
-          if (!isNaN(dateObj.getTime())) {
-            meetingStatus = 'scheduled';
-            scheduledAtIso = dateObj.toISOString();
-            publishedAtIso = now;
-          }
-        }
-
-        const meeting = await meetingRepo.create({
-          statusRequestId: sr.id,
-          taskId: task.id,
-          createdByAdminUid: req.session.userId!,
-          googleSpaceName: spaceResult.googleSpaceName,
-          meetingUri: spaceResult.meetingUri,
-          meetingTitle: `Google Meet Discussion: Status Request on ${task.title}`,
-          description: meetDescription,
-          status: meetingStatus,
-          scheduledAt: scheduledAtIso,
-          publishedAt: publishedAtIso,
-          timezone: 'Asia/Kolkata',
+      // If scheduled Google Meet discussion included, send immediate meeting notification
+      if (sharedMeeting && sharedMeeting.status === 'scheduled' && dateFormatted && timeFormatted) {
+        const meetTmpl = notifTemplates.meetingScheduled(sr.question, dateFormatted, timeFormatted);
+        await createNotification({
+          recipientUserId: userId,
+          eventType: 'STATUS_REQUESTED',
+          title: meetTmpl.title,
+          body: meetTmpl.body,
+          relatedTaskId: task.id,
+          relatedStatusRequestId: sr.id,
+          navigationUrl: `/employee/tasks/${task.id}`,
         });
-
-        if (meetingStatus === 'scheduled' && meetDate && meetTime) {
-          const dateFormatted = new Date(`${meetDate}T${meetTime}:00`).toLocaleDateString('en-IN', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-          });
-          const timeFormatted = new Date(`${meetDate}T${meetTime}:00`).toLocaleTimeString('en-IN', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          });
-
-          const meetTmpl = notifTemplates.meetingScheduled(sr.question, dateFormatted, timeFormatted);
-          await createNotification({
-            recipientUserId: userId,
-            eventType: 'STATUS_REQUESTED',
-            title: meetTmpl.title,
-            body: meetTmpl.body,
-            relatedTaskId: task.id,
-            relatedStatusRequestId: sr.id,
-            navigationUrl: `/employee/tasks/${task.id}`,
-          });
-        }
-
-        (sr as any).meeting = meeting;
       }
 
       created.push(sr);

@@ -11,7 +11,7 @@ export function errorHandler(
   _next: NextFunction
 ): void {
   console.error('[Error]', err.message, err.stack);
-  res.status(500).json({ success: false, error: 'Internal server error' });
+  res.status(500).json({ success: false, error: err.message || 'Internal server error' });
 }
 
 export function notFound(_req: Request, res: Response): void {

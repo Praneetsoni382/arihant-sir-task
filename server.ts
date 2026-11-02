@@ -20,14 +20,15 @@ async function startServer() {
         './server/src/services/istSchedulerService.js'
       );
 
-      const PORT = Number(process.env.PORT || 3000);
+      // In AI Studio / local dev environment, dev server must always run on port 3000
+      const PORT = Number(process.env.DEV_PORT || 3000);
       await seedStore();
       startISTClockAndScheduler();
       const ist = getISTClock();
 
       const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
-        server: { middlewareMode: true },
+        server: { middlewareMode: true, hmr: false },
         appType: 'spa',
         root: path.resolve(process.cwd(), 'client'),
         configFile: path.resolve(process.cwd(), 'client/vite.config.ts'),

@@ -14,6 +14,7 @@ import {
   Users,
   Bell,
   Video,
+  AlertCircle,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Card } from '../../components/ui/Card';
@@ -32,6 +33,8 @@ import {
   getPriorityLabel,
 } from '../../utils/statusHelpers';
 import type { TaskWithMembers, AuditEvent, Query, StatusRequest, ChatMessage } from '../../types';
+
+const TODAY_ISO = new Date().toISOString().split('T')[0];
 
 export function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -55,6 +58,8 @@ export function TaskDetailPage() {
   const [meetDate, setMeetDate] = useState('');
   const [meetTime, setMeetTime] = useState('');
   const [meetDescription, setMeetDescription] = useState('');
+  const [meetModalError, setMeetModalError] = useState('');
+  const [isGeneratingMeet, setIsGeneratingMeet] = useState(false);
 
   // Chat message input
   const [chatInput, setChatInput] = useState('');
@@ -212,19 +217,45 @@ export function TaskDetailPage() {
   const priorityColors = getPriorityColors(task.priority);
   const overdue = isOverdue(task.deadline) && task.status !== 'approved';
 
-  const TODAY_ISO = new Date().toISOString().split('T')[0];
-
   const handleOpenStatusRequest = () => {
     setSelectedRecipients(task.members.map((m) => m.userId));
     setIncludeMeet(false);
     setMeetDate('');
     setMeetTime('');
     setMeetDescription('');
+    setMeetModalError('');
     setStatusReqModalOpen(true);
   };
 
-  const handleSendStatusRequest = () => {
+  const handleSendStatusRequest = async () => {
+    setMeetModalError('');
     const q = customQuestion.trim() ? customQuestion.trim() : selectedQuestion;
+
+    let accessToken: string | undefined;
+
+    if (includeMeet) {
+      setIsGeneratingMeet(true);
+      try {
+        const { getGoogleMeetAccessToken } = await import(
+          '../../services/googleMeet'
+        );
+        const authData = await getGoogleMeetAccessToken(true);
+        if (!authData?.accessToken) {
+          setMeetModalError('Google Meet authorization is required to create a real Google Meet link.');
+          setIsGeneratingMeet(false);
+          return;
+        }
+        accessToken = authData.accessToken;
+      } catch (err: any) {
+        console.error('Google Meet space creation error:', err);
+        setMeetModalError(err?.message || 'Failed to create real Google Meet space.');
+        setIsGeneratingMeet(false);
+        return;
+      } finally {
+        setIsGeneratingMeet(false);
+      }
+    }
+
     sendStatusReqMutation.mutate({
       question: q,
       recipientUserIds: selectedRecipients,
@@ -232,6 +263,7 @@ export function TaskDetailPage() {
       meetDate: includeMeet ? meetDate : undefined,
       meetTime: includeMeet ? meetTime : undefined,
       meetDescription: includeMeet ? meetDescription : undefined,
+      accessToken,
     });
   };
 
@@ -876,7 +908,7 @@ export function TaskDetailPage() {
               <Button
                 size="sm"
                 onClick={handleSendStatusRequest}
-                loading={sendStatusReqMutation.isPending}
+                loading={sendStatusReqMutation.isPending || isGeneratingMeet}
                 disabled={selectedRecipients.length === 0}
               >
                 Send Request
@@ -885,6 +917,16 @@ export function TaskDetailPage() {
           }
         >
           <div className="space-y-4">
+            {meetModalError && (
+              <div className="p-3 bg-[#FFF0F0] text-[#D64545] rounded-xl border border-[#F5B8B8] text-xs flex items-start gap-2">
+                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <span className="font-bold block">Google Meet API Notice</span>
+                  <span className="text-[11px] leading-relaxed block">{meetModalError}</span>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="text-xs font-semibold text-[#172033] block mb-1">
                 Choose Preset Inquiry

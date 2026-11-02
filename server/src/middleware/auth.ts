@@ -17,7 +17,10 @@ async function resolveUserFromAuthHeader(req: Request): Promise<boolean> {
     try {
       const parsed = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf8'));
       if (parsed && parsed.uid && (!parsed.exp || parsed.exp > Date.now())) {
-        const user = userRepo.findById(parsed.uid);
+        let user = userRepo.findById(parsed.uid);
+        if (!user) {
+          user = await userRepo.fetchFromCloudById(parsed.uid);
+        }
         if (user && user.active) {
           req.session.userId = user.id;
           req.session.role = user.role;
@@ -33,7 +36,10 @@ async function resolveUserFromAuthHeader(req: Request): Promise<boolean> {
     if (adminAuth) {
       try {
         const decoded = await adminAuth.verifyIdToken(rawToken);
-        const user = userRepo.findById(decoded.uid) || (decoded.email ? userRepo.findByEmail(decoded.email) : undefined);
+        let user = userRepo.findById(decoded.uid) || (decoded.email ? userRepo.findByEmail(decoded.email) : undefined);
+        if (!user && decoded.email) {
+          user = await userRepo.fetchFromCloudByEmail(decoded.email);
+        }
         if (user && user.active) {
           req.session.userId = user.id;
           req.session.role = user.role;
@@ -45,7 +51,9 @@ async function resolveUserFromAuthHeader(req: Request): Promise<boolean> {
       }
     }
   }
-  return false;
+
+  // Fallback: If session already established via cookie, keep it valid
+  return Boolean(req.session?.userId);
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -57,7 +65,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
   }
 
-  const user = userRepo.findById(req.session.userId!);
+  let user = userRepo.findById(req.session.userId!);
+  if (!user) {
+    user = await userRepo.fetchFromCloudById(req.session.userId!);
+  }
   if (!user || !user.active) {
     res.status(403).json({ success: false, error: 'Account is deactivated or not found' });
     return;
@@ -77,7 +88,10 @@ export function requireRole(...roles: UserRole[]) {
       res.status(401).json({ success: false, error: 'Authentication required' });
       return;
     }
-    const user = userRepo.findById(req.session.userId!);
+    let user = userRepo.findById(req.session.userId!);
+    if (!user) {
+      user = await userRepo.fetchFromCloudById(req.session.userId!);
+    }
     if (!user || !user.active) {
       res.status(403).json({ success: false, error: 'Account is deactivated' });
       return;
@@ -99,7 +113,10 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     res.status(401).json({ success: false, error: 'Authentication required' });
     return;
   }
-  const user = userRepo.findById(req.session.userId!);
+  let user = userRepo.findById(req.session.userId!);
+  if (!user) {
+    user = await userRepo.fetchFromCloudById(req.session.userId!);
+  }
   if (!user || !user.active || user.role !== 'admin') {
     res.status(403).json({ success: false, error: 'Admin access required' });
     return;

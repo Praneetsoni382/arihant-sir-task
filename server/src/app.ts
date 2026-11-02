@@ -64,12 +64,24 @@ app.use(
     name: 'tid',
     cookie: {
       httpOnly: true,
-      secure: false,
+      secure: 'auto',
       sameSite: 'lax',
       maxAge: 8 * 60 * 60 * 1000, // 8 hours
     },
   })
 );
+
+// Dynamically adapt cookie policy for HTTPS & cross-origin AI Studio iframe preview
+app.use((req, _res, next) => {
+  if (req.session && req.session.cookie) {
+    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+    if (isHttps) {
+      req.session.cookie.secure = true;
+      req.session.cookie.sameSite = 'none';
+    }
+  }
+  next();
+});
 
 // ============================================================
 // HEALTH CHECK

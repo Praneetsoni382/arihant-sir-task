@@ -15,12 +15,12 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // If already authenticated, redirect straight to user's portal
+  // If already authenticated on load, redirect straight to user's portal
   useEffect(() => {
-    if (user) {
+    if (user && !loading) {
       navigate(user.role === 'admin' ? '/admin' : '/employee', { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
 
   const doLogin = async (targetEmail: string, targetPass: string) => {
     setError(null);

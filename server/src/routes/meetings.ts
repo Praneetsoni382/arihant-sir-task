@@ -129,6 +129,20 @@ router.post(
   })
 );
 
+// POST /api/admin/google/create-space (Server-side proxy for Google Meet REST API v2 space creation)
+router.post(
+  '/google/create-space',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const authHeader = req.headers.authorization;
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+    const token = req.body?.accessToken || bearerToken;
+
+    const spaceResult = await createGoogleMeetSpace(req.session.userId!, token);
+    res.json({ success: true, data: spaceResult });
+  })
+);
+
 // ============================================================
 // 2. GOOGLE MEET FOR STATUS REQUESTS ENDPOINTS
 // ============================================================
@@ -139,6 +153,8 @@ router.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const { requestId } = req.params;
+    const { accessToken, meetingUri, googleSpaceName, meetingCode } = req.body || {};
+
     const sr = statusRequestRepo.findById(requestId);
     if (!sr) {
       res.status(404).json({ success: false, error: 'Status Request not found' });
@@ -174,8 +190,14 @@ router.post(
       return;
     }
 
-    // Create genuine Google Meet space via Google API (or stable persistent fallback)
-    const spaceResult = await createGoogleMeetSpace(req.session.userId!, undefined, requestId);
+    // Create genuine Google Meet space via Google Meet REST API v2 (or use client-provided verified space)
+    const spaceResult = await createGoogleMeetSpace(
+      req.session.userId!,
+      accessToken,
+      requestId,
+      meetingUri,
+      googleSpaceName
+    );
 
     const meetingTitle = `Google Meet Discussion: Status Request on ${task.title}`;
 
@@ -195,12 +217,20 @@ router.post(
     await statusRequestRepo.update(sr.id, { meetingId: newMeeting.id });
     await taskRepo.update(task.id, { meetingId: newMeeting.id });
 
+    // Synchronize this meeting across all sibling status requests for the same task
+    const siblingRequests = statusRequestRepo.findByTask(task.id);
+    for (const sib of siblingRequests) {
+      if (!sib.meetingId) {
+        await statusRequestRepo.update(sib.id, { meetingId: newMeeting.id });
+      }
+    }
+
     await createAuditEvent({
       actorUserId: req.session.userId!,
       entityType: 'status_request',
       entityId: sr.id,
       eventType: 'STATUS_REQUEST_SENT',
-      message: `Google Meet link created (Draft) for status request: ${spaceResult.meetingUri}`,
+      message: `Genuine Google Meet space created (Draft) via Google Meet API: ${spaceResult.meetingUri}`,
     });
 
     res.status(201).json({ success: true, data: newMeeting });
@@ -281,19 +311,34 @@ router.post(
     const task = taskRepo.findById(sr.taskId);
     const taskTitle = task ? task.title : 'Task Deliverable';
 
-    // IMMEDIATE NOTIFICATION DELIVERY TO CONCERNED EMPLOYEE(S)
-    const recipientUser = userRepo.findById(sr.recipientUserId) || (await userRepo.fetchFromCloudById(sr.recipientUserId));
-    if (recipientUser) {
-      const tmpl = notifTemplates.meetingScheduled(sr.question, dateFormatted, timeFormatted);
-      await createNotification({
-        recipientUserId: sr.recipientUserId,
-        eventType: 'STATUS_REQUESTED',
-        title: tmpl.title,
-        body: tmpl.body,
-        relatedTaskId: sr.taskId,
-        relatedStatusRequestId: sr.id,
-        navigationUrl: `/employee/tasks/${sr.taskId}`,
-      });
+    // IMMEDIATE NOTIFICATION DELIVERY TO ALL CONCERNED EMPLOYEE(S)
+    const recipientUids = new Set<string>();
+    recipientUids.add(sr.recipientUserId);
+
+    const siblingRequests = statusRequestRepo.findByTask(sr.taskId);
+    for (const sib of siblingRequests) {
+      if (sib.meetingId === meeting.id || !sib.meetingId) {
+        if (!sib.meetingId) {
+          await statusRequestRepo.update(sib.id, { meetingId: meeting.id });
+        }
+        recipientUids.add(sib.recipientUserId);
+      }
+    }
+
+    const tmpl = notifTemplates.meetingScheduled(sr.question, dateFormatted, timeFormatted);
+    for (const uid of recipientUids) {
+      const recipientUser = userRepo.findById(uid) || (await userRepo.fetchFromCloudById(uid));
+      if (recipientUser) {
+        await createNotification({
+          recipientUserId: uid,
+          eventType: 'STATUS_REQUESTED',
+          title: tmpl.title,
+          body: tmpl.body,
+          relatedTaskId: sr.taskId,
+          relatedStatusRequestId: sr.id,
+          navigationUrl: `/employee/tasks/${sr.taskId}`,
+        });
+      }
     }
 
     await createAuditEvent({
@@ -301,7 +346,7 @@ router.post(
       entityType: 'status_request',
       entityId: sr.id,
       eventType: 'STATUS_REQUEST_SENT',
-      message: `Google Meet discussion scheduled for ${dateFormatted} at ${timeFormatted} IST and published to employee.`,
+      message: `Google Meet discussion scheduled for ${dateFormatted} at ${timeFormatted} IST and published to ${recipientUids.size} employee(s). Link: ${meeting.meetingUri}`,
     });
 
     res.status(200).json({ success: true, data: updatedMeeting });
@@ -430,8 +475,11 @@ router.get(
       return;
     }
 
-    // Authorization check: User must be admin or the recipient employee
-    if (req.session.role !== 'admin' && sr.recipientUserId !== req.session.userId) {
+    // Authorization check: User must be admin, the recipient employee, or an assigned task member
+    const isRecipient = sr.recipientUserId === req.session.userId;
+    const isMember = !!taskMemberRepo.findByTaskAndUser(sr.taskId, req.session.userId!);
+
+    if (req.session.role !== 'admin' && !isRecipient && !isMember) {
       res.status(403).json({ success: false, error: 'Unauthorized to access meeting for this request' });
       return;
     }

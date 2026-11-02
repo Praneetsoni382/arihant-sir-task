@@ -22,25 +22,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
   });
-  const [isLoading, setIsLoading] = useState(!user);
+  // Only indicate loading initially if an auth token is actually present to verify
+  const [isLoading, setIsLoading] = useState(() => {
+    return Boolean(localStorage.getItem('auth_token'));
+  });
 
-  // Check session on mount
+  // Verify stored session on mount ONLY if an auth token exists
   useEffect(() => {
     let mounted = true;
+    const currentToken = localStorage.getItem('auth_token');
+
+    if (!currentToken) {
+      return;
+    }
+
     authApi.me()
       .then((res) => {
-        if (mounted && res.data.success && res.data.data) {
+        if (mounted && res.data?.success && res.data?.data) {
           const freshUser = res.data.data as User;
           setUser(freshUser);
           localStorage.setItem('auth_user', JSON.stringify(freshUser));
-          syncDeviceIfGranted(freshUser.id);
+          syncDeviceIfGranted(freshUser.id).catch(() => {});
         }
       })
       .catch((err) => {
+        // Only clear if the session token hasn't been updated by a concurrent login
         if (mounted && err?.response?.status === 401) {
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('auth_user');
-          setUser(null);
+          if (localStorage.getItem('auth_token') === currentToken) {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
+            setUser(null);
+          }
         }
       })
       .finally(() => {
