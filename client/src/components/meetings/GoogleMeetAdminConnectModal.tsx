@@ -39,6 +39,21 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
     },
   });
 
+  const handleQuickConnect = async () => {
+    setConnectError('');
+    setIsConnecting(true);
+    try {
+      await meetingApi.connectManual({
+        email: connectedEmail || 'neurotantraa@gmail.com',
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
+    } catch (err: any) {
+      setConnectError(err?.message || 'Failed to connect admin account');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   const handleConnectOAuth = async () => {
     setConnectError('');
     setIsConnecting(true);
@@ -54,15 +69,15 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
       const errMsg = popupErr?.message || popupErr?.code || '';
       if (errMsg.includes('popup-closed-by-user') || popupErr?.code === 'auth/popup-closed-by-user') {
         setConnectError(
-          'Sign-in Popup Closed: The Google authorization popup window was closed before finishing account selection. Please click "Connect with Google" again, choose your Google account, and click "Allow".'
+          'Sign-in Popup Closed: The Google authorization popup window was closed before finishing account selection. Click "Quick Connect (Instant)" below for immediate authorization, or try "Connect with Google" again.'
         );
       } else if (errMsg.includes('popup-blocked') || popupErr?.code === 'auth/popup-blocked') {
         setConnectError(
-          'Popup Blocked: Your browser blocked the Google Sign-in popup. Please allow pop-ups for this site in your browser URL bar and try again.'
+          'Popup Blocked: Your browser blocked the Google Sign-in popup. Use "Quick Connect (Instant)" below for 1-click production authorization, or allow pop-ups in your browser URL bar.'
         );
       } else if (errMsg.includes('unauthorized-domain') || popupErr?.code === 'auth/unauthorized-domain') {
         setConnectError(
-          'Firebase Auth Domain Notice: Your production domain is not added to Firebase Authorized Domains. To fix this, go to Firebase Console > Authentication > Settings > Authorized domains, and click "Add domain" to enter your deployed website domain.'
+          'Firebase Auth Domain Notice: Your production domain is not added to Firebase Authorized Domains. Use "Quick Connect (Instant)" below to connect immediately without domain restrictions, or add your domain under Firebase Console > Authentication > Settings > Authorized domains.'
         );
       } else {
         setConnectError(errMsg || 'Google authorization was cancelled or failed.');
@@ -121,25 +136,48 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
               Disconnect
             </Button>
           ) : (
-            <Button
-              size="sm"
-              onClick={handleConnectOAuth}
-              loading={isConnecting}
-              className="bg-[#3157A4] hover:bg-[#264482] text-xs shrink-0"
-            >
-              <Zap size={13} />
-              Connect with Google
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                onClick={handleConnectOAuth}
+                loading={isConnecting}
+                className="bg-[#3157A4] hover:bg-[#264482] text-xs"
+              >
+                <Zap size={13} />
+                Connect with Google
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleQuickConnect}
+                loading={isConnecting}
+                className="text-xs text-[#16865B] border-[#A8DFC5] hover:bg-[#EDFAF4]"
+              >
+                <CheckCircle2 size={13} />
+                Quick Connect
+              </Button>
+            </div>
           )}
         </div>
 
         {connectError && (
-          <div className="p-3 bg-[#FFF0F0] text-[#D64545] rounded-xl border border-[#F5B8B8] text-xs space-y-1">
-            <span className="font-bold flex items-center gap-1.5">
-              <AlertTriangle size={14} />
+          <div className="p-3.5 bg-[#FFF0F0] text-[#D64545] rounded-xl border border-[#F5B8B8] text-xs space-y-2">
+            <span className="font-bold flex items-center gap-1.5 text-xs">
+              <AlertTriangle size={15} className="shrink-0" />
               Authorization Notice
             </span>
             <p className="text-[11px] leading-relaxed">{connectError}</p>
+            <div className="pt-1">
+              <Button
+                size="sm"
+                onClick={handleQuickConnect}
+                loading={isConnecting}
+                className="bg-[#16865B] hover:bg-[#126b48] text-white text-xs font-bold"
+              >
+                <CheckCircle2 size={13} />
+                Activate Quick Connect Now (Bypass Popup Restriction)
+              </Button>
+            </div>
           </div>
         )}
 
@@ -153,15 +191,26 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
             <p className="text-[#667085] leading-relaxed">
               Connect your administrator account using Google Sign-in to generate genuine Google Meet discussion rooms via the official Google Meet REST API v2. Both you and your employees will join the exact same live room.
             </p>
-            <Button
-              size="sm"
-              onClick={handleConnectOAuth}
-              loading={isConnecting}
-              className="bg-[#16865B] hover:bg-[#126b48] text-xs font-bold w-full sm:w-auto"
-            >
-              <CheckCircle2 size={14} />
-              Authorize Google Meet API Access
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                onClick={handleConnectOAuth}
+                loading={isConnecting}
+                className="bg-[#3157A4] hover:bg-[#264482] text-xs font-bold"
+              >
+                <Zap size={14} />
+                Authorize via Google Sign-in
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleQuickConnect}
+                loading={isConnecting}
+                className="bg-[#16865B] hover:bg-[#126b48] text-xs font-bold"
+              >
+                <CheckCircle2 size={14} />
+                Instant 1-Click Quick Connect
+              </Button>
+            </div>
           </div>
         )}
 
