@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Video, CheckCircle2, AlertTriangle, Unlink } from 'lucide-react';
+import { Video, CheckCircle2, AlertTriangle, Unlink, ExternalLink, Globe } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { meetingApi } from '../../services/api';
+import { checkOAuthUrlParams } from '../../services/googleMeet';
 
 interface Props {
   isOpen: boolean;
@@ -13,13 +14,24 @@ interface Props {
 export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
   const queryClient = useQueryClient();
   const [connectError, setConnectError] = useState('');
+  const [successNotice, setSuccessNotice] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // Check URL params on open or load
+  useEffect(() => {
+    const { connected, error } = checkOAuthUrlParams();
+    if (connected) {
+      setSuccessNotice('Google Meet Workspace authorization succeeded! Connected to Google.');
+      queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
+    }
+    if (error) {
+      setConnectError(`Google authorization failed: ${error}`);
+    }
+  }, [queryClient, isOpen]);
 
   const { data: statusData, isLoading } = useQuery({
     queryKey: ['admin-google-status'],
     queryFn: async () => {
-      const { getGoogleMeetAccessToken } = await import('../../services/googleMeet');
-      await getGoogleMeetAccessToken(false);
       const res = await meetingApi.getGoogleStatus();
       return res.data?.data as {
         isConnected: boolean;
@@ -37,45 +49,15 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
       return meetingApi.disconnectGoogle();
     },
     onSuccess: () => {
+      setSuccessNotice('');
       queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
     },
   });
 
-  const handleConnectOAuth = async () => {
-    setConnectError('');
-    setIsConnecting(true);
-    try {
-      const { getGoogleMeetAccessToken } = await import('../../services/googleMeet');
-      const authData = await getGoogleMeetAccessToken(true);
-      if (!authData?.accessToken) {
-        throw new Error('Google authorization was cancelled or access token is missing.');
-      }
-      queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
-    } catch (popupErr: any) {
-      console.warn('Google Meet connection error:', popupErr);
-      const errMsg = popupErr?.message || popupErr?.code || '';
-      if (errMsg.includes('popup-closed-by-user') || popupErr?.code === 'auth/popup-closed-by-user') {
-        setConnectError(
-          'Sign-in Popup Closed: The Google authorization popup window was closed before completing account selection. Please try "Authorize via Google (Redirect Mode)" below to bypass popups entirely.'
-        );
-      } else if (errMsg.includes('popup-blocked') || popupErr?.code === 'auth/popup-blocked') {
-        setConnectError(
-          'Popup Blocked: Your browser blocked the Google Sign-in popup. Please try "Authorize via Google (Redirect Mode)" below to sign in directly in the main browser window.'
-        );
-      } else if (errMsg.includes('unauthorized-domain') || popupErr?.code === 'auth/unauthorized-domain') {
-        setConnectError(
-          'Firebase Auth Domain Notice: Your current production domain is not added to Firebase Authorized Domains. Go to Firebase Console > Authentication > Settings > Authorized domains and add your deployed app domain.'
-        );
-      } else {
-        setConnectError(errMsg || 'Google authorization was cancelled or failed.');
-      }
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
+  // Primary: Production-grade Redirect Mode (eliminates popups entirely)
   const handleConnectRedirect = async () => {
     setConnectError('');
+    setSuccessNotice('');
     setIsConnecting(true);
     try {
       const { triggerGoogleMeetRedirect } = await import('../../services/googleMeet');
@@ -86,12 +68,47 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
     }
   };
 
+  // Secondary: Popup Mode (for Preview / Local development)
+  const handleConnectPopup = async () => {
+    setConnectError('');
+    setSuccessNotice('');
+    setIsConnecting(true);
+    try {
+      const { getGoogleMeetAccessToken } = await import('../../services/googleMeet');
+      const authData = await getGoogleMeetAccessToken(true);
+      if (!authData?.accessToken) {
+        throw new Error('Google authorization was cancelled or access token is missing.');
+      }
+      queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
+      setSuccessNotice(`Connected to Google account (${authData.email || 'Admin'}) successfully!`);
+    } catch (popupErr: any) {
+      console.warn('Google Meet connection error:', popupErr);
+      const errMsg = popupErr?.message || popupErr?.code || '';
+      if (errMsg.includes('popup-closed-by-user') || popupErr?.code === 'auth/popup-closed-by-user') {
+        setConnectError(
+          'Sign-in Popup Closed: The Google authorization popup window was closed before completing account selection. Please use "Authorize via Google (Redirect Mode)" below to sign in directly in the main browser window.'
+        );
+      } else if (errMsg.includes('popup-blocked') || popupErr?.code === 'auth/popup-blocked') {
+        setConnectError(
+          'Popup Blocked: Your browser blocked the Google Sign-in popup. Please use "Authorize via Google (Redirect Mode)" below to sign in directly in the main browser window without popups.'
+        );
+      } else {
+        setConnectError(errMsg || 'Google authorization was cancelled or failed.');
+      }
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  // Instant Quick Connect (for zero-latency development & testing)
   const handleQuickConnect = async () => {
     setConnectError('');
+    setSuccessNotice('');
     setIsConnecting(true);
     try {
       await meetingApi.connectManual({});
       queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
+      setSuccessNotice('Instant Quick Connect authorized successfully.');
     } catch (err: any) {
       setConnectError(err?.message || 'Quick connect failed');
     } finally {
@@ -101,6 +118,8 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
 
   const isConnected = statusData?.isConnected;
   const connectedEmail = statusData?.connectedEmail || 'admin@company.com';
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const currentRedirectUri = `${currentOrigin}/api/admin/google/callback`;
 
   return (
     <Modal
@@ -114,6 +133,7 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
       }
     >
       <div className="space-y-4">
+        {/* Status card */}
         <div className="p-4 bg-[#F8FAFD] rounded-xl border border-[#E4E8EF] flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-[#EBF3FF] border border-[#B8D0F5] text-[#3157A4] flex items-center justify-center shrink-0">
@@ -151,7 +171,7 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
             <div className="flex items-center gap-2 shrink-0">
               <Button
                 size="sm"
-                onClick={handleConnectOAuth}
+                onClick={handleConnectRedirect}
                 loading={isConnecting}
                 className="bg-[#3157A4] hover:bg-[#264482] text-xs font-bold"
               >
@@ -161,6 +181,15 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
           )}
         </div>
 
+        {/* Success Notice */}
+        {successNotice && (
+          <div className="p-3.5 bg-[#EDFAF4] text-[#16865B] rounded-xl border border-[#A8DFC5] text-xs flex items-center gap-2">
+            <CheckCircle2 size={15} className="shrink-0" />
+            <span className="font-semibold">{successNotice}</span>
+          </div>
+        )}
+
+        {/* Error Notice */}
         {connectError && (
           <div className="p-3.5 bg-[#FFF0F0] text-[#D64545] rounded-xl border border-[#F5B8B8] text-xs space-y-2">
             <span className="font-bold flex items-center gap-1.5 text-xs">
@@ -179,7 +208,7 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
               <span>Official Google Meet Workspace Authorization</span>
             </div>
             <p className="text-[#667085] leading-relaxed">
-              Connect your Google Workspace or Gmail account to generate genuine Google Meet discussion rooms via the official Google Meet REST API v2 (`meet.googleapis.com`). All meeting spaces are set to open access (`accessType: 'OPEN'`) so administrators and employees join the exact same live room without host admission delays.
+              Connect your Google account to create genuine Google Meet discussion rooms via the official Google Meet REST API v2 (<code className="font-mono text-[#172033]">meet.googleapis.com</code>). Meeting spaces are configured with <code className="font-mono text-[#172033]">accessType: 'OPEN'</code> so both admins and employees join the exact same live room instantly.
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <Button
@@ -188,16 +217,17 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
                 loading={isConnecting}
                 className="bg-[#3157A4] hover:bg-[#264482] text-xs font-bold"
               >
-                Authorize via Google (Redirect Mode)
+                <ExternalLink size={13} />
+                Authorize via Google (Redirect Mode — Recommended)
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleConnectOAuth}
+                onClick={handleConnectPopup}
                 loading={isConnecting}
                 className="text-xs text-[#3157A4] border-[#B8DDFB] hover:bg-[#EBF3FF]"
               >
-                Popup Mode
+                Popup Mode (Preview / Desktop)
               </Button>
               <Button
                 variant="outline"
@@ -212,22 +242,31 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
           </div>
         )}
 
-        <div className="p-3 bg-[#FFF8E7] rounded-lg border border-[#F5D87E] text-xs space-y-1.5">
+        {/* Production Configuration & URI Reference */}
+        <div className="p-3.5 bg-[#FFF8E7] rounded-xl border border-[#F5D87E] text-xs space-y-2">
           <div className="font-bold text-[#C58A20] flex items-center gap-1.5">
-            <AlertTriangle size={14} />
-            <span>Production Deployment & Domain Whitelisting Note</span>
+            <Globe size={14} />
+            <span>Google Cloud Console Credentials Setup Reference</span>
           </div>
           <p className="text-[#667085] leading-relaxed text-[11px]">
-            If Google authentication fails in production with an authorization or popup message:
+            In Google Cloud Console under <strong>APIs &amp; Services &gt; Credentials &gt; OAuth 2.0 Client IDs</strong>:
           </p>
-          <ul className="list-disc pl-4 text-[11px] text-[#667085] space-y-1">
-            <li>Use <strong>Authorize via Google (Redirect Mode)</strong> to perform authentication within the main browser window, completely bypassing popup block policy restrictions on production hosts like <code>arihant-sir-task.onrender.com</code>.</li>
-            <li>In Firebase Console, go to <strong>Authentication &gt; Settings &gt; Authorized domains</strong> and add your production domain (e.g., <code>arihant-sir-task.onrender.com</code>).</li>
-            <li>In Google Cloud Console, add <code>https://arihant-sir-task.onrender.com/__/auth/handler</code> to Authorized Redirect URIs under OAuth 2.0 Client IDs.</li>
-          </ul>
+          <div className="space-y-1.5 text-[11px]">
+            <div>
+              <span className="font-semibold text-[#172033] block">1. Authorized JavaScript Origins:</span>
+              <code className="px-2 py-0.5 bg-white border border-[#E4E8EF] rounded font-mono text-[#3157A4] select-all block mt-0.5 break-all">
+                {currentOrigin}
+              </code>
+            </div>
+            <div>
+              <span className="font-semibold text-[#172033] block">2. Authorized Redirect URIs:</span>
+              <code className="px-2 py-0.5 bg-white border border-[#E4E8EF] rounded font-mono text-[#3157A4] select-all block mt-0.5 break-all">
+                {currentRedirectUri}
+              </code>
+            </div>
+          </div>
         </div>
       </div>
     </Modal>
   );
 }
-

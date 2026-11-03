@@ -24,6 +24,9 @@ import {
   getGoogleOAuthUrl,
   exchangeCodeForTokens,
   createGoogleMeetSpace,
+  createOAuthState,
+  consumeOAuthState,
+  resolveRedirectUri,
 } from '../services/googleMeetService.js';
 import type { Meeting } from '../types/index.js';
 
@@ -54,43 +57,93 @@ router.get(
 );
 
 // GET /api/admin/google/auth-url
+// Returns dynamic Google OAuth URL with cryptographically secure state
 router.get(
   '/google/auth-url',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const state = `state_${req.session.userId}_${Date.now()}`;
-    const authUrl = getGoogleOAuthUrl(state);
-    res.json({ success: true, data: { authUrl } });
+    const explicitUri = typeof req.query.redirect_uri === 'string' ? req.query.redirect_uri : undefined;
+    const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    const host = (req.headers['x-forwarded-host'] as string) || req.headers.host;
+    const redirectUri = resolveRedirectUri(explicitUri, host, proto);
+
+    const state = createOAuthState(req.session.userId!, redirectUri, '/admin/status-requests');
+    const authUrl = getGoogleOAuthUrl(state, redirectUri);
+
+    res.json({
+      success: true,
+      data: {
+        authUrl,
+        redirectUri,
+        state,
+      },
+    });
+  })
+);
+
+// GET /api/admin/google/authorize
+// Direct browser-redirect initiation (Redirect Mode - eliminates popups entirely)
+router.get(
+  '/google/authorize',
+  asyncHandler(async (req, res) => {
+    const userId = req.session.userId || 'seed-admin-001';
+    const explicitUri = typeof req.query.redirect_uri === 'string' ? req.query.redirect_uri : undefined;
+    const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    const host = (req.headers['x-forwarded-host'] as string) || req.headers.host;
+    const redirectUri = resolveRedirectUri(explicitUri, host, proto);
+
+    const state = createOAuthState(userId, redirectUri, '/admin/status-requests');
+    const authUrl = getGoogleOAuthUrl(state, redirectUri);
+
+    // Direct 302 navigation to Google Accounts
+    res.redirect(authUrl);
   })
 );
 
 // GET /api/admin/google/callback
+// Handles Google OAuth 2.0 authorization code redirect return
 router.get(
   '/google/callback',
   asyncHandler(async (req, res) => {
-    const { code, state, error } = req.query;
+    const { code, state, error, error_description } = req.query;
 
     if (error) {
-      res.redirect(`/#/admin/settings?oauth_error=${encodeURIComponent(String(error))}`);
+      const errDetail = error_description || error;
+      res.redirect(`/admin/status-requests?oauth_error=${encodeURIComponent(String(errDetail))}`);
       return;
     }
 
     if (!code || typeof code !== 'string') {
-      res.status(400).send('Missing authorization code');
+      res.redirect('/admin/status-requests?oauth_error=Missing+authorization+code+from+Google');
       return;
     }
 
+    const stateStr = typeof state === 'string' ? state : '';
+    const statePayload = consumeOAuthState(stateStr);
+
+    const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    const host = (req.headers['x-forwarded-host'] as string) || req.headers.host;
+    const fallbackRedirectUri = resolveRedirectUri(undefined, host, proto);
+    const redirectUriToUse = statePayload?.redirectUri || fallbackRedirectUri;
+    const userId = statePayload?.userId || req.session.userId || 'seed-admin-001';
+
     try {
-      const userId = req.session.userId || 'seed-admin-001';
-      await exchangeCodeForTokens(code, userId);
-      res.redirect('/#/admin/status-requests?google_connected=true');
+      await exchangeCodeForTokens(code, userId, redirectUriToUse);
+
+      // Re-establish admin session if needed
+      req.session.userId = userId;
+      req.session.role = 'admin';
+
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.warn('Session save notice after OAuth callback:', saveErr);
+        }
+        res.redirect('/admin/status-requests?google_connected=true');
+      });
     } catch (err) {
       console.error('OAuth Callback Error:', err);
-      res.redirect(
-        `/#/admin/settings?oauth_error=${encodeURIComponent(
-          err instanceof Error ? err.message : 'Authentication failed'
-        )}`
-      );
+      const errMsg = err instanceof Error ? err.message : 'Google OAuth authentication failed';
+      res.redirect(`/admin/status-requests?oauth_error=${encodeURIComponent(errMsg)}`);
     }
   })
 );
@@ -273,7 +326,7 @@ router.post(
     const { date, time, description } = parse.data;
 
     // Validate that scheduled time is not in the past (IST time comparison)
-    const scheduledDateTimeStr = `${date}T${time}:00`;
+    const scheduledDateTimeStr = `${date}T${time}:00+05:30`;
     const scheduledDateObj = new Date(scheduledDateTimeStr);
     const now = new Date();
 
@@ -296,20 +349,36 @@ router.post(
       timezone: 'Asia/Kolkata',
     });
 
+    // Check if scheduled for today in IST
+    const istNowStr = new Date().toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const meetingDateIstStr = scheduledDateObj.toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const isToday = istNowStr === meetingDateIstStr;
+
     // Format IST date and time strings for human notification
-    const dateFormatted = new Date(scheduledDateTimeStr).toLocaleDateString('en-IN', {
+    const dateFormatted = scheduledDateObj.toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
       day: '2-digit',
       month: 'short',
       year: 'numeric',
     });
-    const timeFormatted = new Date(scheduledDateTimeStr).toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-
-    const task = taskRepo.findById(sr.taskId);
-    const taskTitle = task ? task.title : 'Task Deliverable';
+    const timeFormatted = scheduledDateObj
+      .toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
+      .toUpperCase();
 
     // IMMEDIATE NOTIFICATION DELIVERY TO ALL CONCERNED EMPLOYEE(S)
     const recipientUids = new Set<string>();
@@ -325,7 +394,7 @@ router.post(
       }
     }
 
-    const tmpl = notifTemplates.meetingScheduled(sr.question, dateFormatted, timeFormatted);
+    const tmpl = notifTemplates.meetingScheduled(dateFormatted, timeFormatted, isToday);
     for (const uid of recipientUids) {
       const recipientUser = userRepo.findById(uid) || (await userRepo.fetchFromCloudById(uid));
       if (recipientUser) {
@@ -373,12 +442,29 @@ router.patch(
 
     const { date, time, description } = req.body;
     let scheduledAt = meeting.scheduledAt;
+    let dateFormatted = '';
+    let timeFormatted = '';
 
     if (date && time) {
-      const scheduledDateTimeStr = `${date}T${time}:00`;
+      const scheduledDateTimeStr = `${date}T${time}:00+05:30`;
       const dateObj = new Date(scheduledDateTimeStr);
       if (!isNaN(dateObj.getTime())) {
         scheduledAt = dateObj.toISOString();
+
+        dateFormatted = dateObj.toLocaleDateString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+        timeFormatted = dateObj
+          .toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          })
+          .toUpperCase();
       }
     }
 
@@ -388,28 +474,28 @@ router.patch(
       status: 'scheduled',
     });
 
-    if (date && time) {
-      const dateFormatted = new Date(`${date}T${time}:00`).toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
-      const timeFormatted = new Date(`${date}T${time}:00`).toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      });
+    if (dateFormatted && timeFormatted) {
+      const recipientUids = new Set<string>();
+      recipientUids.add(sr.recipientUserId);
+      const siblingRequests = statusRequestRepo.findByTask(sr.taskId);
+      for (const sib of siblingRequests) {
+        if (sib.meetingId === meeting.id) {
+          recipientUids.add(sib.recipientUserId);
+        }
+      }
 
-      const tmpl = notifTemplates.meetingScheduled(sr.question, dateFormatted, timeFormatted);
-      await createNotification({
-        recipientUserId: sr.recipientUserId,
-        eventType: 'STATUS_REQUESTED',
-        title: `Google Meet Rescheduled`,
-        body: `Your administrator has rescheduled the Google Meet discussion for status request '${sr.question}' to ${dateFormatted} at ${timeFormatted} IST.`,
-        relatedTaskId: sr.taskId,
-        relatedStatusRequestId: sr.id,
-        navigationUrl: `/employee/tasks/${sr.taskId}`,
-      });
+      const tmpl = notifTemplates.meetingRescheduled(dateFormatted, timeFormatted);
+      for (const uid of recipientUids) {
+        await createNotification({
+          recipientUserId: uid,
+          eventType: 'STATUS_REQUESTED',
+          title: tmpl.title,
+          body: tmpl.body,
+          relatedTaskId: sr.taskId,
+          relatedStatusRequestId: sr.id,
+          navigationUrl: `/employee/tasks/${sr.taskId}`,
+        });
+      }
     }
 
     res.status(200).json({ success: true, data: updatedMeeting });
@@ -439,16 +525,29 @@ router.post(
       cancelledAt: new Date().toISOString(),
     });
 
-    const tmpl = notifTemplates.meetingCancelled(sr.question);
-    await createNotification({
-      recipientUserId: sr.recipientUserId,
-      eventType: 'STATUS_REQUESTED',
-      title: tmpl.title,
-      body: tmpl.body,
-      relatedTaskId: sr.taskId,
-      relatedStatusRequestId: sr.id,
-      navigationUrl: `/employee/tasks/${sr.taskId}`,
-    });
+    const task = taskRepo.findById(sr.taskId);
+    const tmpl = notifTemplates.meetingCancelled(task ? task.title : 'Task');
+
+    const recipientUids = new Set<string>();
+    recipientUids.add(sr.recipientUserId);
+    const siblingRequests = statusRequestRepo.findByTask(sr.taskId);
+    for (const sib of siblingRequests) {
+      if (sib.meetingId === meeting.id) {
+        recipientUids.add(sib.recipientUserId);
+      }
+    }
+
+    for (const uid of recipientUids) {
+      await createNotification({
+        recipientUserId: uid,
+        eventType: 'STATUS_REQUESTED',
+        title: tmpl.title,
+        body: tmpl.body,
+        relatedTaskId: sr.taskId,
+        relatedStatusRequestId: sr.id,
+        navigationUrl: `/employee/tasks/${sr.taskId}`,
+      });
+    }
 
     await createAuditEvent({
       actorUserId: req.session.userId!,

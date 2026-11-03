@@ -1,9 +1,8 @@
-import {
-  GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
-} from 'firebase/auth';
-import { auth } from '../firebase';
+// ============================================================
+// GOOGLE MEET SERVICE & OAUTH INTEGRATION (CLIENT)
+// File: client/src/services/googleMeet.ts
+// ============================================================
+
 import { meetingApi } from './api';
 
 export const MEET_SCOPE = 'https://www.googleapis.com/auth/meetings.space.created';
@@ -32,35 +31,6 @@ export function clearGoogleTokenCache(): void {
   cachedUserEmail = null;
 }
 
-// Process redirect result automatically on load
-if (typeof window !== 'undefined') {
-  getRedirectResult(auth)
-    .then(async (result) => {
-      if (result) {
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        const accessToken = credential?.accessToken;
-        const userEmail = result.user?.email || '';
-
-        if (accessToken) {
-          cachedAccessToken = accessToken;
-          cachedUserEmail = userEmail;
-          try {
-            await meetingApi.connectManual({
-              email: userEmail,
-              accessToken,
-            });
-            console.log('✅ Google Meet OAuth token successfully stored via redirect handler');
-          } catch (syncErr) {
-            console.warn('Notice syncing Google token to backend:', syncErr);
-          }
-        }
-      }
-    })
-    .catch((err) => {
-      console.warn('Firebase Redirect Result notice:', err);
-    });
-}
-
 declare global {
   interface Window {
     google?: any;
@@ -68,9 +38,10 @@ declare global {
 }
 
 /**
- * Dynamically loads Google Identity Services (GIS) library once.
+ * Dynamically loads Google Identity Services (GIS) library eagerly.
  */
-async function loadGisScript(): Promise<boolean> {
+export async function loadGisScript(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
   if (window.google?.accounts?.oauth2) return true;
   return new Promise((resolve) => {
     const existing = document.getElementById('google-gis-script');
@@ -91,23 +62,60 @@ async function loadGisScript(): Promise<boolean> {
   });
 }
 
+// Pre-load GIS script in background on app start
+if (typeof window !== 'undefined') {
+  loadGisScript().catch(() => {});
+}
+
 /**
- * Full-page Redirect Mode sign-in (signInWithRedirect).
- * Bypasses popups entirely to resolve cross-origin popup restrictions in hosted production environments.
+ * Checks URL search parameters for OAuth callback result (?google_connected=true or ?oauth_error=...)
+ * and cleans up the URL without a full page reload.
+ */
+export function checkOAuthUrlParams(): {
+  connected?: boolean;
+  error?: string;
+} {
+  if (typeof window === 'undefined') return {};
+  const params = new URLSearchParams(window.location.search);
+  const connected = params.get('google_connected') === 'true';
+  const oauthError = params.get('oauth_error');
+
+  if (connected || oauthError) {
+    // Remove query params from browser URL bar cleanly
+    params.delete('google_connected');
+    params.delete('oauth_error');
+    const newSearch = params.toString();
+    const cleanUrl =
+      window.location.pathname +
+      (newSearch ? `?${newSearch}` : '') +
+      window.location.hash;
+    window.history.replaceState({}, document.title, cleanUrl);
+
+    return {
+      connected: connected ? true : undefined,
+      error: oauthError ? decodeURIComponent(oauthError) : undefined,
+    };
+  }
+  return {};
+}
+
+/**
+ * Full-page Redirect Mode sign-in via backend OAuth 2.0 Authorization Code Flow.
+ * Directly navigates browser to Google Accounts in the main tab, eliminating popups
+ * and bypassing modern cross-origin browser tracking/cookie restrictions completely.
  */
 export async function triggerGoogleMeetRedirect(): Promise<void> {
-  const provider = new GoogleAuthProvider();
-  provider.addScope(MEET_SCOPE);
-  provider.addScope(EMAIL_SCOPE);
-  provider.setCustomParameters({
-    prompt: 'select_account',
-  });
-  await signInWithRedirect(auth, provider);
+  if (typeof window === 'undefined') return;
+
+  // Direct top-level navigation to the server's authorize route
+  const currentOrigin = window.location.origin;
+  const redirectUri = `${currentOrigin}/api/admin/google/callback`;
+  window.location.href = `/api/admin/google/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`;
 }
 
 /**
  * Google Meet access token authorization.
- * Supports cached tokens, backend status verification, and single-trigger authorization.
+ * Supports cached tokens, backend verification, and single-trigger popup / redirect.
  */
 export async function getGoogleMeetAccessToken(interactive = true): Promise<{
   accessToken: string;
@@ -145,7 +153,7 @@ export async function getGoogleMeetAccessToken(interactive = true): Promise<{
     const isGisLoaded = await loadGisScript();
 
     if (!isGisLoaded || !window.google?.accounts?.oauth2) {
-      // Fall back to full-page redirect if GIS script fails
+      // Fall back to full-page redirect if GIS script fails or is blocked
       await triggerGoogleMeetRedirect();
       return null;
     }
@@ -205,7 +213,11 @@ export async function getGoogleMeetAccessToken(interactive = true): Promise<{
         error_callback: (_err: any) => {
           if (resolved) return;
           resolved = true;
-          reject(new Error('Sign-in Popup Notice: Popups were blocked or closed. Please try "Authorize via Google Sign-in (Redirect Mode)" or Quick Connect below.'));
+          reject(
+            new Error(
+              'Sign-in Popup Notice: Popups were blocked or closed. Please use "Authorize via Google (Redirect Mode)" to sign in seamlessly without popups.'
+            )
+          );
         },
       });
 

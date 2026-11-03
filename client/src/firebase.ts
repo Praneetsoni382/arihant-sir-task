@@ -11,7 +11,20 @@ try {
   // ignore
 }
 
-export const app = initializeApp(firebaseConfig);
+// Dynamically resolve authDomain: use current hostname if on a custom or hosted domain,
+// bypassing third-party cookie restrictions associated with fallback firebaseapp.com domains.
+const resolvedAuthDomain =
+  typeof window !== 'undefined' &&
+  window.location.hostname &&
+  !window.location.hostname.includes('localhost') &&
+  !window.location.hostname.includes('127.0.0.1')
+    ? window.location.hostname
+    : firebaseConfig.authDomain;
+
+export const app = initializeApp({
+  ...firebaseConfig,
+  authDomain: resolvedAuthDomain,
+});
 
 // Initialize Firestore with long-polling to prevent gRPC Listen/Write stream NOT_FOUND errors in iframe previews
 let firestoreDb: Firestore;

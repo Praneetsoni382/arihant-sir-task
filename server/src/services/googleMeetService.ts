@@ -3,21 +3,97 @@
 // File: server/src/services/googleMeetService.ts
 // ============================================================
 
+import crypto from 'crypto';
 import { googleAuthRepo } from '../repositories/inMemoryStore.js';
 import type { GoogleAuthTokens } from '../types/index.js';
 
-const GOOGLE_CLIENT_ID =
+export const GOOGLE_CLIENT_ID =
   process.env.GOOGLE_CLIENT_ID ||
   '1088662376372-itpkdjisgp3r6pilfn0a216c758p9n78.apps.googleusercontent.com';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const GOOGLE_REDIRECT_URI =
-  process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/admin/google/callback';
+export const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 
 export const MEET_SCOPE = 'https://www.googleapis.com/auth/meetings.space.created';
 export const EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email';
 
+// In-memory OAuth state registry with 15-minute TTL
+export interface OAuthStatePayload {
+  userId: string;
+  redirectUri: string;
+  createdAt: number;
+  returnTo?: string;
+}
+
+const oauthStateRegistry = new Map<string, OAuthStatePayload>();
+
+/**
+ * Resolves the OAuth Redirect URI dynamically based on the current request/environment.
+ * Matches RFC 6749 so the redirect_uri in auth request exactly matches token exchange.
+ */
+export function resolveRedirectUri(
+  explicitUri?: string,
+  hostHeader?: string,
+  protoHeader: string = 'https'
+): string {
+  if (explicitUri && explicitUri.trim().length > 0) {
+    return explicitUri.trim();
+  }
+  if (process.env.GOOGLE_REDIRECT_URI && process.env.GOOGLE_REDIRECT_URI.trim().length > 0) {
+    return process.env.GOOGLE_REDIRECT_URI.trim();
+  }
+  if (hostHeader) {
+    const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1');
+    const proto = isLocal ? 'http' : (protoHeader || 'https');
+    return `${proto}://${hostHeader}/api/admin/google/callback`;
+  }
+  return 'http://localhost:3000/api/admin/google/callback';
+}
+
+/**
+ * Generates a cryptographically secure OAuth 2.0 state token and binds it to the user session.
+ */
+export function createOAuthState(
+  userId: string,
+  redirectUri: string,
+  returnTo?: string
+): string {
+  // Clean up expired states older than 15 mins
+  const now = Date.now();
+  for (const [key, val] of oauthStateRegistry.entries()) {
+    if (now - val.createdAt > 15 * 60 * 1000) {
+      oauthStateRegistry.delete(key);
+    }
+  }
+
+  const randomToken = crypto.randomBytes(24).toString('hex');
+  const stateKey = `st_${userId}_${randomToken}`;
+  oauthStateRegistry.set(stateKey, {
+    userId,
+    redirectUri,
+    createdAt: now,
+    returnTo,
+  });
+
+  return stateKey;
+}
+
+/**
+ * Validates and consumes an OAuth state token. Returns payload or null if invalid/expired.
+ */
+export function consumeOAuthState(stateKey: string): OAuthStatePayload | null {
+  if (!stateKey) return null;
+  const entry = oauthStateRegistry.get(stateKey);
+  if (!entry) return null;
+  oauthStateRegistry.delete(stateKey);
+
+  // Validate TTL (15 minutes)
+  if (Date.now() - entry.createdAt > 15 * 60 * 1000) {
+    return null;
+  }
+  return entry;
+}
+
 export function getGoogleOAuthUrl(stateStr: string = 'taskflow_meet', dynamicRedirectUri?: string): string {
-  const redirectUri = dynamicRedirectUri || GOOGLE_REDIRECT_URI;
+  const redirectUri = resolveRedirectUri(dynamicRedirectUri);
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
     redirect_uri: redirectUri,
@@ -30,10 +106,20 @@ export function getGoogleOAuthUrl(stateStr: string = 'taskflow_meet', dynamicRed
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
-export async function exchangeCodeForTokens(code: string, userId: string): Promise<GoogleAuthTokens> {
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+export async function exchangeCodeForTokens(
+  code: string,
+  userId: string,
+  dynamicRedirectUri?: string
+): Promise<GoogleAuthTokens> {
+  const redirectUri = resolveRedirectUri(dynamicRedirectUri);
+
+  if (!GOOGLE_CLIENT_ID) {
+    throw new Error('GOOGLE_CLIENT_ID is not configured.');
+  }
+
+  if (!GOOGLE_CLIENT_SECRET) {
     throw new Error(
-      'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables are not configured on the backend server.'
+      'GOOGLE_CLIENT_SECRET environment variable is not configured on the backend server. Please configure GOOGLE_CLIENT_SECRET in your environment or use Instant Quick Connect in the admin modal.'
     );
   }
 
@@ -44,7 +130,7 @@ export async function exchangeCodeForTokens(code: string, userId: string): Promi
       code,
       client_id: GOOGLE_CLIENT_ID,
       client_secret: GOOGLE_CLIENT_SECRET,
-      redirect_uri: GOOGLE_REDIRECT_URI,
+      redirect_uri: redirectUri,
       grant_type: 'authorization_code',
     }),
   });

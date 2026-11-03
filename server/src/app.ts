@@ -39,6 +39,7 @@ app.use(
     frameguard: false,
     contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   })
 );
 

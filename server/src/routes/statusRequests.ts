@@ -205,23 +205,41 @@ taskStatusRequestRouter.post(
       let publishedAtIso: string | null = null;
 
       if (meetDate && meetTime) {
-        const scheduledDateTimeStr = `${meetDate}T${meetTime}:00`;
+        const scheduledDateTimeStr = `${meetDate}T${meetTime}:00+05:30`;
         const dateObj = new Date(scheduledDateTimeStr);
         if (!isNaN(dateObj.getTime())) {
           meetingStatus = 'scheduled';
           scheduledAtIso = dateObj.toISOString();
           publishedAtIso = now;
 
+          const istNowStr = new Date().toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          });
+          const meetingDateIstStr = dateObj.toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          });
+          const isToday = istNowStr === meetingDateIstStr;
+
           dateFormatted = dateObj.toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Kolkata',
             day: '2-digit',
             month: 'short',
             year: 'numeric',
           });
-          timeFormatted = dateObj.toLocaleTimeString('en-IN', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          });
+          timeFormatted = dateObj
+            .toLocaleTimeString('en-IN', {
+              timeZone: 'Asia/Kolkata',
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true,
+            })
+            .toUpperCase();
         }
       }
 
@@ -275,12 +293,27 @@ taskStatusRequestRouter.post(
         body: tmpl.body,
         relatedTaskId: task.id,
         relatedStatusRequestId: sr.id,
-        navigationUrl: `/tasks/${task.id}`,
+        navigationUrl: `/employee/tasks/${task.id}`,
       });
 
       // If scheduled Google Meet discussion included, send immediate meeting notification
       if (sharedMeeting && sharedMeeting.status === 'scheduled' && dateFormatted && timeFormatted) {
-        const meetTmpl = notifTemplates.meetingScheduled(sr.question, dateFormatted, timeFormatted);
+        const istNowStr = new Date().toLocaleDateString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        });
+        const dateObj = new Date(`${meetDate}T${meetTime}:00+05:30`);
+        const meetingDateIstStr = dateObj.toLocaleDateString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        });
+        const isToday = istNowStr === meetingDateIstStr;
+
+        const meetTmpl = notifTemplates.meetingScheduled(dateFormatted, timeFormatted, isToday);
         await createNotification({
           recipientUserId: userId,
           eventType: 'STATUS_REQUESTED',

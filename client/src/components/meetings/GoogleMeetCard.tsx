@@ -59,15 +59,27 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
         '../../services/googleMeet'
       );
 
-      // 1. Ensure real Google Meet OAuth access token via popup
-      const authData = await getGoogleMeetAccessToken(true);
-      if (!authData?.accessToken) {
-        throw new Error('Google authorization was cancelled or access token is missing.');
+      // 1. Check if token already available locally or via backend status
+      let token = (await getGoogleMeetAccessToken(false))?.accessToken;
+      if (!token) {
+        const statusRes = await meetingApi.getGoogleStatus();
+        const isConnected = !!(statusRes.data?.data as any)?.isConnected;
+
+        if (!isConnected) {
+          if (onOpenGoogleConnect) {
+            onOpenGoogleConnect();
+            setIsCreatingMeet(false);
+            return;
+          }
+          // Fall back to interactive popup only if modal callback unavailable
+          const authData = await getGoogleMeetAccessToken(true);
+          token = authData?.accessToken;
+        }
       }
 
       // 2. Persist & generate genuine space on server via Google Meet REST API v2
       await meetingApi.createMeeting(statusRequest.id, {
-        accessToken: authData.accessToken,
+        accessToken: token && !token.startsWith('backend_') ? token : undefined,
       });
 
       queryClient.invalidateQueries({ queryKey: ['status-request-meeting', statusRequest.id] });
@@ -76,17 +88,20 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
     } catch (err: any) {
       console.error('Failed to create real Google Meet space:', err);
       const msg = err?.response?.data?.error || err?.message || err?.code || '';
-      if (msg.includes('popup-closed-by-user') || err?.code === 'auth/popup-closed-by-user') {
+      if (msg.includes('Google Meet authorization required') || msg.includes('No active Google Meet access token')) {
         setCreationError(
-          'Google Sign-in popup was closed before completing authorization. Please click "Create Meet Link" again and choose your Google account to grant Meet space creation access.'
+          'Google Meet Authorization Required: Please click "Google Settings" above to connect your Google account with Google Meet permissions.'
+        );
+        if (onOpenGoogleConnect) {
+          onOpenGoogleConnect();
+        }
+      } else if (msg.includes('popup-closed-by-user') || err?.code === 'auth/popup-closed-by-user') {
+        setCreationError(
+          'Sign-in window closed: Please click "Google Settings" and use "Authorize via Google (Redirect Mode)" to connect seamlessly without popups.'
         );
       } else if (msg.includes('popup-blocked') || err?.code === 'auth/popup-blocked') {
         setCreationError(
-          'Popup Blocked: Your browser blocked the Google Sign-in popup. Please enable pop-ups for this domain in your address bar and try again.'
-        );
-      } else if (msg.includes('unauthorized-domain') || err?.code === 'auth/unauthorized-domain') {
-        setCreationError(
-          'Firebase Domain Authorization Notice: Your production website domain must be added under Firebase Console > Authentication > Settings > Authorized domains.'
+          'Popup Blocked: Please click "Google Settings" and select "Authorize via Google (Redirect Mode)" to authorize directly in the main browser window.'
         );
       } else {
         setCreationError(msg || 'Failed to create real Google Meet space.');
@@ -150,6 +165,7 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
     try {
       const d = new Date(isoStr);
       return d.toLocaleDateString('en-IN', {
+        timeZone: 'Asia/Kolkata',
         day: '2-digit',
         month: 'short',
         year: 'numeric',
@@ -165,10 +181,11 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
       const d = new Date(isoStr);
       return (
         d.toLocaleTimeString('en-IN', {
-          hour: '2-digit',
+          timeZone: 'Asia/Kolkata',
+          hour: 'numeric',
           minute: '2-digit',
           hour12: true,
-        }) + ' IST'
+        }).toUpperCase() + ' IST'
       );
     } catch {
       return isoStr;
@@ -351,7 +368,19 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
             </div>
           </div>
 
-          <div className="pt-2 flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-[#B8DDFB] text-xs font-mono text-[#3157A4]">
+            <span className="truncate flex-1 select-all">{meeting.meetingUri}</span>
+            <button
+              type="button"
+              onClick={() => handleCopyLink(meeting.meetingUri)}
+              className="text-[#667085] hover:text-[#3157A4] p-1 cursor-pointer shrink-0 transition-colors"
+              title="Copy Link"
+            >
+              {copied ? <Check size={14} className="text-[#16865B]" /> : <Copy size={14} />}
+            </button>
+          </div>
+
+          <div className="pt-1 flex flex-wrap items-center gap-2">
             <a
               href={meeting.meetingUri}
               target="_blank"

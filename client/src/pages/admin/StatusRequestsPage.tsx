@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
@@ -7,6 +7,8 @@ import {
   ArrowRight,
   Search,
   Video,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Card } from '../../components/ui/Card';
@@ -17,13 +19,36 @@ import { statusRequestApi } from '../../services/api';
 import { formatDateTime, formatRelative } from '../../utils/formatDate';
 import { GoogleMeetCard } from '../../components/meetings/GoogleMeetCard';
 import { GoogleMeetAdminConnectModal } from '../../components/meetings/GoogleMeetAdminConnectModal';
+import { checkOAuthUrlParams } from '../../services/googleMeet';
 import type { StatusRequest } from '../../types';
 
 export function StatusRequestsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [googleConnectOpen, setGoogleConnectOpen] = useState(false);
+  const [oauthBanner, setOauthBanner] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const { connected, error } = checkOAuthUrlParams();
+    if (connected) {
+      setOauthBanner({
+        type: 'success',
+        message: 'Google Meet Account Connected Successfully! You can now create and schedule genuine Google Meet discussions on any status request.',
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin-google-status'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-status-requests'] });
+    } else if (error) {
+      setOauthBanner({
+        type: 'error',
+        message: `Google OAuth Authorization Notice: ${error}`,
+      });
+    }
+  }, [queryClient]);
 
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ['admin-status-requests'],
@@ -75,6 +100,45 @@ export function StatusRequestsPage() {
             Google Meet Connection
           </Button>
         </div>
+
+        {/* OAuth Notification Banner */}
+        {oauthBanner && (
+          <div
+            className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+              oauthBanner.type === 'success'
+                ? 'bg-[#EDFAF4] border-[#A8DFC5] text-[#16865B]'
+                : 'bg-[#FFF0F0] border-[#F5B8B8] text-[#D64545]'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {oauthBanner.type === 'success' ? (
+                <CheckCircle2 size={16} className="shrink-0 text-[#16865B]" />
+              ) : (
+                <AlertTriangle size={16} className="shrink-0 text-[#D64545]" />
+              )}
+              <span className="font-semibold">{oauthBanner.message}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {oauthBanner.type === 'error' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setGoogleConnectOpen(true)}
+                  className="text-xs border-[#F5B8B8] text-[#D64545] hover:bg-[#FFF0F0]"
+                >
+                  Configure
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={() => setOauthBanner(null)}
+                className="p-1 hover:opacity-75 cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <Card className="p-4">

@@ -106,7 +106,7 @@ export function TaskDetailPage() {
   });
 
   const myStatusRequests = statusRequests.filter(
-    (sr) => sr.taskId === id && sr.recipientUserId === user?.id && sr.status === 'pending'
+    (sr) => sr.taskId === id && sr.recipientUserId === user?.id
   );
 
   // Find employee's own member record
@@ -376,35 +376,69 @@ export function TaskDetailPage() {
           <div className="p-4 bg-[#FFF8E7] border border-[#F5D87E] rounded-xl space-y-3">
             <h3 className="text-xs font-bold text-[#C58A20] flex items-center gap-1.5">
               <MessageSquare size={15} />
-              <span>Manager Status Requests Requiring Your Response</span>
+              <span>Manager Status Inquiries & Discussions</span>
             </h3>
             {myStatusRequests.map((sr) => (
-              <div key={sr.id} className="p-3 bg-white rounded-lg border border-[#F5D87E] space-y-2">
-                <p className="text-xs font-bold text-[#172033]">"{sr.question}"</p>
-                <GoogleMeetCard statusRequest={sr} isAdmin={false} />
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    placeholder="Type your status update for the manager..."
-                    value={respondingToReqId === sr.id ? statusResponseText : ''}
-                    onChange={(e) => {
-                      setRespondingToReqId(sr.id);
-                      setStatusResponseText(e.target.value);
-                    }}
-                    className="w-full flex-1 px-3 py-2 text-xs border border-[#E4E8EF] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3157A4]"
-                  />
-                  <Button
-                    size="sm"
-                    disabled={respondingToReqId !== sr.id || !statusResponseText.trim()}
-                    onClick={() =>
-                      sendStatusResponseMutation.mutate({ reqId: sr.id, text: statusResponseText.trim() })
-                    }
-                    loading={sendStatusResponseMutation.isPending}
-                    className="w-full sm:w-auto justify-center"
+              <div key={sr.id} className="p-3.5 bg-white rounded-lg border border-[#F5D87E] space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-[#172033]">"{sr.question}"</p>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                      sr.status === 'answered'
+                        ? 'bg-[#EDFAF4] text-[#16865B] border border-[#A8DFC5]'
+                        : 'bg-[#FFF8E7] text-[#C58A20] border border-[#F5D87E]'
+                    }`}
                   >
-                    Reply
-                  </Button>
+                    {sr.status === 'answered' ? 'Answered' : 'Pending Response'}
+                  </span>
                 </div>
+
+                {/* Google Meet Section inside Employee Status Request Card */}
+                <GoogleMeetCard statusRequest={sr} isAdmin={false} />
+
+                {/* If pending: Employee response form */}
+                {sr.status === 'pending' && (
+                  <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-[#E4E8EF]">
+                    <input
+                      type="text"
+                      placeholder="Type your status update for the manager..."
+                      value={respondingToReqId === sr.id ? statusResponseText : ''}
+                      onChange={(e) => {
+                        setRespondingToReqId(sr.id);
+                        setStatusResponseText(e.target.value);
+                      }}
+                      className="w-full flex-1 px-3 py-2 text-xs border border-[#E4E8EF] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3157A4]"
+                    />
+                    <Button
+                      size="sm"
+                      disabled={respondingToReqId !== sr.id || !statusResponseText.trim()}
+                      onClick={() =>
+                        sendStatusResponseMutation.mutate({ reqId: sr.id, text: statusResponseText.trim() })
+                      }
+                      loading={sendStatusResponseMutation.isPending}
+                      className="w-full sm:w-auto justify-center"
+                    >
+                      Reply
+                    </Button>
+                  </div>
+                )}
+
+                {/* If answered: Display employee's response */}
+                {sr.status === 'answered' && sr.responses && sr.responses.length > 0 && (
+                  <div className="pt-2 border-t border-[#E4E8EF] space-y-1">
+                    {sr.responses.map((resp) => (
+                      <div key={resp.id} className="p-2.5 bg-[#F9FBFF] rounded-lg border border-[#E4E8EF]">
+                        <p className="text-[11px] font-semibold text-[#3157A4]">
+                          Your Submitted Response:
+                        </p>
+                        <p className="text-xs text-[#172033] whitespace-pre-wrap">{resp.responseText}</p>
+                        <span className="text-[10px] text-[#667085] mt-0.5 block">
+                          Submitted {formatDateTime(resp.createdAt)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
