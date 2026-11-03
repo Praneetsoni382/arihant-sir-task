@@ -1,10 +1,3 @@
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  onAuthStateChanged,
-  type User,
-} from 'firebase/auth';
-import { auth } from '../firebase';
 import { meetingApi } from './api';
 
 export const MEET_SCOPE = 'https://www.googleapis.com/auth/meetings.space.created';
@@ -14,17 +7,10 @@ const DEFAULT_GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   '1088662376372-itpkdjisgp3r6pilfn0a216c758p9n78.apps.googleusercontent.com';
 
-// In-memory token cache as mandated by workspace-integration guidelines
+// In-memory token cache
 let cachedAccessToken: string | null = null;
 let cachedUserEmail: string | null = null;
-
-// Clear cached token on Firebase auth state changes
-onAuthStateChanged(auth, (user: User | null) => {
-  if (!user) {
-    cachedAccessToken = null;
-    cachedUserEmail = null;
-  }
-});
+let isAuthorizing = false;
 
 export function getCachedGoogleAccessToken(): string | null {
   return cachedAccessToken;
@@ -42,7 +28,7 @@ declare global {
 }
 
 /**
- * Dynamically loads Google Identity Services (GIS) library.
+ * Dynamically loads Google Identity Services (GIS) library once.
  */
 async function loadGisScript(): Promise<boolean> {
   if (window.google?.accounts?.oauth2) return true;
@@ -66,87 +52,9 @@ async function loadGisScript(): Promise<boolean> {
 }
 
 /**
- * Methodology 1: Official Google Identity Services (GIS) Token Client.
- * Directly requests access token via Google OAuth 2.0 popup without relying on Firebase redirect handlers.
- */
-async function requestTokenViaGis(): Promise<{ accessToken: string; email: string } | null> {
-  const isLoaded = await loadGisScript();
-  if (!isLoaded || !window.google?.accounts?.oauth2) {
-    return null;
-  }
-
-  return new Promise((resolve) => {
-    try {
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: DEFAULT_GOOGLE_CLIENT_ID,
-        scope: `${MEET_SCOPE} ${EMAIL_SCOPE}`,
-        callback: async (response: any) => {
-          if (response?.error) {
-            console.warn('GIS OAuth error notice:', response.error);
-            resolve(null);
-            return;
-          }
-          if (response?.access_token) {
-            let email = '';
-            try {
-              const uRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-                headers: { Authorization: `Bearer ${response.access_token}` },
-              });
-              if (uRes.ok) {
-                const uData = await uRes.json();
-                email = uData.email || '';
-              }
-            } catch {
-              // optional
-            }
-            resolve({ accessToken: response.access_token, email });
-          } else {
-            resolve(null);
-          }
-        },
-        error_callback: (err: any) => {
-          console.warn('GIS error callback:', err);
-          resolve(null);
-        },
-      });
-
-      client.requestAccessToken({ prompt: 'select_account' });
-    } catch (err) {
-      console.warn('GIS initialization error:', err);
-      resolve(null);
-    }
-  });
-}
-
-/**
- * Methodology 2: Firebase GoogleAuthProvider with signInWithPopup.
- */
-async function requestTokenViaFirebasePopup(): Promise<{ accessToken: string; email: string } | null> {
-  const provider = new GoogleAuthProvider();
-  provider.addScope(MEET_SCOPE);
-  provider.addScope(EMAIL_SCOPE);
-  provider.setCustomParameters({
-    prompt: 'select_account',
-  });
-
-  const result = await signInWithPopup(auth, provider);
-  const credential = GoogleAuthProvider.credentialFromResult(result);
-  const token = credential?.accessToken;
-
-  if (!token) {
-    throw new Error('Firebase popup succeeded but no Google Meet access token was returned.');
-  }
-
-  return {
-    accessToken: token,
-    email: result.user.email || '',
-  };
-}
-
-/**
- * Resilient multi-methodology Google Meet access token retrieval.
- * Tries GIS token client first -> Firebase Popup second -> Backend Status fallback.
- * Guaranteed never to navigate away or throw user out of the page.
+ * Clean Single-Trigger Google Meet access token authorization using Google Identity Services.
+ * Guaranteed to open exactly ONE popup for the actual origin domain (e.g. arihant-sir-task.onrender.com).
+ * Prevents double popups, nested .firebaseapp.com popups, and COOP cross-origin errors.
  */
 export async function getGoogleMeetAccessToken(interactive = true): Promise<{
   accessToken: string;
@@ -174,52 +82,84 @@ export async function getGoogleMeetAccessToken(interactive = true): Promise<{
     return null;
   }
 
-  let result: { accessToken: string; email: string } | null = null;
-  let lastError: any = null;
+  // 3. Prevent duplicate simultaneous popup requests
+  if (isAuthorizing) {
+    throw new Error('Google authorization is already in progress. Please complete the open sign-in window.');
+  }
 
-  // Methodology A: Official Google Identity Services (GIS) Token Client
   try {
-    console.log('Attempting Method 1: Google Identity Services (GIS) Token Client...');
-    result = await requestTokenViaGis();
-  } catch (gisErr) {
-    console.warn('Method 1 GIS failed, moving to Method 2 Firebase Popup:', gisErr);
-    lastError = gisErr;
-  }
+    isAuthorizing = true;
+    const isGisLoaded = await loadGisScript();
 
-  // Methodology B: Firebase signInWithPopup
-  if (!result) {
-    try {
-      console.log('Attempting Method 2: Firebase signInWithPopup...');
-      result = await requestTokenViaFirebasePopup();
-    } catch (popupErr: any) {
-      console.warn('Method 2 Firebase Popup failed:', popupErr);
-      lastError = popupErr;
+    if (!isGisLoaded || !window.google?.accounts?.oauth2) {
+      throw new Error('Google Identity Services client library could not be loaded. Please check your internet connection or use Quick Connect.');
     }
-  }
 
-  // If a token was retrieved by either method, cache and sync with backend
-  if (result?.accessToken) {
-    cachedAccessToken = result.accessToken;
-    cachedUserEmail = result.email || '';
+    return await new Promise<{ accessToken: string; email: string }>((resolve, reject) => {
+      let resolved = false;
 
-    try {
-      await meetingApi.connectManual({
-        email: cachedUserEmail,
-        accessToken: cachedAccessToken,
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: DEFAULT_GOOGLE_CLIENT_ID,
+        scope: `${MEET_SCOPE} ${EMAIL_SCOPE}`,
+        callback: async (response: any) => {
+          if (resolved) return;
+          resolved = true;
+
+          if (response?.error) {
+            if (response.error === 'access_denied') {
+              reject(new Error('Sign-in cancelled: Access request was declined.'));
+            } else {
+              reject(new Error(`Google authorization notice: ${response.error}`));
+            }
+            return;
+          }
+
+          if (response?.access_token) {
+            const token = response.access_token;
+            let email = '';
+            try {
+              const uRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (uRes.ok) {
+                const uData = await uRes.json();
+                email = uData.email || '';
+              }
+            } catch {
+              // optional
+            }
+
+            cachedAccessToken = token;
+            cachedUserEmail = email;
+
+            // Synchronize with backend database repository
+            try {
+              await meetingApi.connectManual({
+                email: cachedUserEmail || undefined,
+                accessToken: cachedAccessToken || undefined,
+              });
+            } catch (syncErr) {
+              console.warn('Backend token sync notice:', syncErr);
+            }
+
+            resolve({ accessToken: token, email: cachedUserEmail || '' });
+          } else {
+            reject(new Error('No access token received from Google authorization.'));
+          }
+        },
+        error_callback: (_err: any) => {
+          if (resolved) return;
+          resolved = true;
+          reject(new Error('Sign-in Popup Closed: The Google authorization window was closed before completing account selection. Please try again.'));
+        },
       });
-    } catch (syncErr) {
-      console.warn('Backend token sync notice:', syncErr);
-    }
 
-    return result;
+      // Launch standard single OAuth popup
+      client.requestAccessToken({ prompt: 'select_account' });
+    });
+  } finally {
+    isAuthorizing = false;
   }
-
-  // If user explicitly cancelled or popup was closed
-  if (lastError?.code === 'auth/popup-closed-by-user' || lastError?.message?.includes('popup-closed-by-user')) {
-    throw new Error('Sign-in popup was closed before completing authorization. Please try again.');
-  }
-
-  throw lastError || new Error('Could not authorize Google account. Please ensure popups are allowed or try Quick Connect.');
 }
 
 export interface GoogleMeetSpaceResult {
