@@ -1,3 +1,9 @@
+import {
+  GoogleAuthProvider,
+  signInWithRedirect,
+  getRedirectResult,
+} from 'firebase/auth';
+import { auth } from '../firebase';
 import { meetingApi } from './api';
 
 export const MEET_SCOPE = 'https://www.googleapis.com/auth/meetings.space.created';
@@ -16,9 +22,43 @@ export function getCachedGoogleAccessToken(): string | null {
   return cachedAccessToken;
 }
 
+export function setCachedGoogleToken(token: string, email?: string): void {
+  cachedAccessToken = token;
+  cachedUserEmail = email || null;
+}
+
 export function clearGoogleTokenCache(): void {
   cachedAccessToken = null;
   cachedUserEmail = null;
+}
+
+// Process redirect result automatically on load
+if (typeof window !== 'undefined') {
+  getRedirectResult(auth)
+    .then(async (result) => {
+      if (result) {
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        const accessToken = credential?.accessToken;
+        const userEmail = result.user?.email || '';
+
+        if (accessToken) {
+          cachedAccessToken = accessToken;
+          cachedUserEmail = userEmail;
+          try {
+            await meetingApi.connectManual({
+              email: userEmail,
+              accessToken,
+            });
+            console.log('✅ Google Meet OAuth token successfully stored via redirect handler');
+          } catch (syncErr) {
+            console.warn('Notice syncing Google token to backend:', syncErr);
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      console.warn('Firebase Redirect Result notice:', err);
+    });
 }
 
 declare global {
@@ -52,9 +92,22 @@ async function loadGisScript(): Promise<boolean> {
 }
 
 /**
- * Clean Single-Trigger Google Meet access token authorization using Google Identity Services.
- * Guaranteed to open exactly ONE popup for the actual origin domain (e.g. arihant-sir-task.onrender.com).
- * Prevents double popups, nested .firebaseapp.com popups, and COOP cross-origin errors.
+ * Full-page Redirect Mode sign-in (signInWithRedirect).
+ * Bypasses popups entirely to resolve cross-origin popup restrictions in hosted production environments.
+ */
+export async function triggerGoogleMeetRedirect(): Promise<void> {
+  const provider = new GoogleAuthProvider();
+  provider.addScope(MEET_SCOPE);
+  provider.addScope(EMAIL_SCOPE);
+  provider.setCustomParameters({
+    prompt: 'select_account',
+  });
+  await signInWithRedirect(auth, provider);
+}
+
+/**
+ * Google Meet access token authorization.
+ * Supports cached tokens, backend status verification, and single-trigger authorization.
  */
 export async function getGoogleMeetAccessToken(interactive = true): Promise<{
   accessToken: string;
@@ -82,9 +135,9 @@ export async function getGoogleMeetAccessToken(interactive = true): Promise<{
     return null;
   }
 
-  // 3. Prevent duplicate simultaneous popup requests
+  // 3. Prevent duplicate simultaneous authorization requests
   if (isAuthorizing) {
-    throw new Error('Google authorization is already in progress. Please complete the open sign-in window.');
+    throw new Error('Google authorization is already in progress. Please complete the sign-in prompt.');
   }
 
   try {
@@ -92,7 +145,9 @@ export async function getGoogleMeetAccessToken(interactive = true): Promise<{
     const isGisLoaded = await loadGisScript();
 
     if (!isGisLoaded || !window.google?.accounts?.oauth2) {
-      throw new Error('Google Identity Services client library could not be loaded. Please check your internet connection or use Quick Connect.');
+      // Fall back to full-page redirect if GIS script fails
+      await triggerGoogleMeetRedirect();
+      return null;
     }
 
     return await new Promise<{ accessToken: string; email: string }>((resolve, reject) => {
@@ -150,11 +205,11 @@ export async function getGoogleMeetAccessToken(interactive = true): Promise<{
         error_callback: (_err: any) => {
           if (resolved) return;
           resolved = true;
-          reject(new Error('Sign-in Popup Closed: The Google authorization window was closed before completing account selection. Please try again.'));
+          reject(new Error('Sign-in Popup Notice: Popups were blocked or closed. Please try "Authorize via Google Sign-in (Redirect Mode)" or Quick Connect below.'));
         },
       });
 
-      // Launch standard single OAuth popup
+      // Launch single OAuth popup
       client.requestAccessToken({ prompt: 'select_account' });
     });
   } finally {

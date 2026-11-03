@@ -56,11 +56,11 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
       const errMsg = popupErr?.message || popupErr?.code || '';
       if (errMsg.includes('popup-closed-by-user') || popupErr?.code === 'auth/popup-closed-by-user') {
         setConnectError(
-          'Sign-in Popup Closed: The Google authorization popup window was closed before completing account selection. Please click "Connect with Google" again and select your Google account.'
+          'Sign-in Popup Closed: The Google authorization popup window was closed before completing account selection. Please try "Authorize via Google (Redirect Mode)" below to bypass popups entirely.'
         );
       } else if (errMsg.includes('popup-blocked') || popupErr?.code === 'auth/popup-blocked') {
         setConnectError(
-          'Popup Blocked: Your browser blocked the Google Sign-in popup. Please allow pop-ups for this site in your browser address bar and try again.'
+          'Popup Blocked: Your browser blocked the Google Sign-in popup. Please try "Authorize via Google (Redirect Mode)" below to sign in directly in the main browser window.'
         );
       } else if (errMsg.includes('unauthorized-domain') || popupErr?.code === 'auth/unauthorized-domain') {
         setConnectError(
@@ -70,6 +70,18 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
         setConnectError(errMsg || 'Google authorization was cancelled or failed.');
       }
     } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleConnectRedirect = async () => {
+    setConnectError('');
+    setIsConnecting(true);
+    try {
+      const { triggerGoogleMeetRedirect } = await import('../../services/googleMeet');
+      await triggerGoogleMeetRedirect();
+    } catch (err: any) {
+      setConnectError(err?.message || 'Redirect authorization failed');
       setIsConnecting(false);
     }
   };
@@ -169,14 +181,23 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
             <p className="text-[#667085] leading-relaxed">
               Connect your Google Workspace or Gmail account to generate genuine Google Meet discussion rooms via the official Google Meet REST API v2 (`meet.googleapis.com`). All meeting spaces are set to open access (`accessType: 'OPEN'`) so administrators and employees join the exact same live room without host admission delays.
             </p>
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               <Button
                 size="sm"
-                onClick={handleConnectOAuth}
+                onClick={handleConnectRedirect}
                 loading={isConnecting}
                 className="bg-[#3157A4] hover:bg-[#264482] text-xs font-bold"
               >
-                Authorize via Google Sign-in
+                Authorize via Google (Redirect Mode)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleConnectOAuth}
+                loading={isConnecting}
+                className="text-xs text-[#3157A4] border-[#B8DDFB] hover:bg-[#EBF3FF]"
+              >
+                Popup Mode
               </Button>
               <Button
                 variant="outline"
@@ -200,9 +221,9 @@ export function GoogleMeetAdminConnectModal({ isOpen, onClose }: Props) {
             If Google authentication fails in production with an authorization or popup message:
           </p>
           <ul className="list-disc pl-4 text-[11px] text-[#667085] space-y-1">
-            <li>Ensure popups are allowed for your app's domain in your browser address bar.</li>
-            <li>In Firebase Console, go to <strong>Authentication &gt; Settings &gt; Authorized domains</strong> and add your production domain (e.g., your app's hosting domain).</li>
-            <li>If using Google Cloud OAuth Client ID, ensure your production domain is listed under <strong>Authorized JavaScript origins</strong> in Google Cloud Console.</li>
+            <li>Use <strong>Authorize via Google (Redirect Mode)</strong> to perform authentication within the main browser window, completely bypassing popup block policy restrictions on production hosts like <code>arihant-sir-task.onrender.com</code>.</li>
+            <li>In Firebase Console, go to <strong>Authentication &gt; Settings &gt; Authorized domains</strong> and add your production domain (e.g., <code>arihant-sir-task.onrender.com</code>).</li>
+            <li>In Google Cloud Console, add <code>https://arihant-sir-task.onrender.com/__/auth/handler</code> to Authorized Redirect URIs under OAuth 2.0 Client IDs.</li>
           </ul>
         </div>
       </div>

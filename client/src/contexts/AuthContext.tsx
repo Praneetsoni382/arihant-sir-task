@@ -9,6 +9,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
+  signInWithGoogleRedirect: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -91,6 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = '/login';
   };
 
+  const signInWithGoogleRedirect = async () => {
+    const { triggerGoogleMeetRedirect } = await import('../services/googleMeet');
+    await triggerGoogleMeetRedirect();
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -99,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         login,
         logout,
+        signInWithGoogleRedirect,
       }}
     >
       {children}
