@@ -26,7 +26,7 @@ import { PageLoader } from '../../components/ui/LoadingSpinner';
 import { useAuth } from '../../contexts/AuthContext';
 import { taskApi, statusRequestApi, queryApi, chatApi } from '../../services/api';
 import { GoogleMeetCard } from '../../components/meetings/GoogleMeetCard';
-import { formatDate, formatDateTime, isOverdue } from '../../utils/formatDate';
+import { formatDate, formatDateTime, formatRelative, isOverdue } from '../../utils/formatDate';
 import {
   getStatusColors,
   getStatusLabel,
@@ -57,8 +57,8 @@ export function TaskDetailPage() {
   });
 
   const [chatInput, setChatInput] = useState('');
-  const [statusResponseText, setStatusResponseText] = useState('');
-  const [respondingToReqId, setRespondingToReqId] = useState<string | null>(null);
+  const [statusResponseTexts, setStatusResponseTexts] = useState<Record<string, string>>({});
+  const [showFollowupFor, setShowFollowupFor] = useState<Record<string, boolean>>({});
 
   // Fetch Task
   const { data: task, isLoading, error } = useQuery({
@@ -145,10 +145,10 @@ export function TaskDetailPage() {
   const sendStatusResponseMutation = useMutation({
     mutationFn: ({ reqId, text }: { reqId: string; text: string }) =>
       statusRequestApi.respond(reqId, text),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['status-requests'] });
-      setRespondingToReqId(null);
-      setStatusResponseText('');
+      setStatusResponseTexts((prev) => ({ ...prev, [variables.reqId]: '' }));
+      setShowFollowupFor((prev) => ({ ...prev, [variables.reqId]: false }));
     },
   });
 
@@ -373,74 +373,166 @@ export function TaskDetailPage() {
 
         {/* SECTION 13: MANAGER STATUS INQUIRIES ON THIS TASK */}
         {myStatusRequests.length > 0 && (
-          <div className="p-4 bg-[#FFF8E7] border border-[#F5D87E] rounded-xl space-y-3">
-            <h3 className="text-xs font-bold text-[#C58A20] flex items-center gap-1.5">
-              <MessageSquare size={15} />
-              <span>Manager Status Inquiries & Discussions</span>
-            </h3>
-            {myStatusRequests.map((sr) => (
-              <div key={sr.id} className="p-3.5 bg-white rounded-lg border border-[#F5D87E] space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-bold text-[#172033]">"{sr.question}"</p>
-                  <span
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                      sr.status === 'answered'
-                        ? 'bg-[#EDFAF4] text-[#16865B] border border-[#A8DFC5]'
-                        : 'bg-[#FFF8E7] text-[#C58A20] border border-[#F5D87E]'
-                    }`}
-                  >
-                    {sr.status === 'answered' ? 'Answered' : 'Pending Response'}
-                  </span>
+          <div className="p-5 bg-[#FFFDF5] border-2 border-[#F5D87E] rounded-xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[#F5D87E]/60">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-[#FFF4D1] text-[#C58A20] flex items-center justify-center font-bold">
+                  <MessageSquare size={16} />
                 </div>
-
-                {/* Google Meet Section inside Employee Status Request Card */}
-                <GoogleMeetCard statusRequest={sr} isAdmin={false} />
-
-                {/* If pending: Employee response form */}
-                {sr.status === 'pending' && (
-                  <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-[#E4E8EF]">
-                    <input
-                      type="text"
-                      placeholder="Type your status update for the manager..."
-                      value={respondingToReqId === sr.id ? statusResponseText : ''}
-                      onChange={(e) => {
-                        setRespondingToReqId(sr.id);
-                        setStatusResponseText(e.target.value);
-                      }}
-                      className="w-full flex-1 px-3 py-2 text-xs border border-[#E4E8EF] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3157A4]"
-                    />
-                    <Button
-                      size="sm"
-                      disabled={respondingToReqId !== sr.id || !statusResponseText.trim()}
-                      onClick={() =>
-                        sendStatusResponseMutation.mutate({ reqId: sr.id, text: statusResponseText.trim() })
-                      }
-                      loading={sendStatusResponseMutation.isPending}
-                      className="w-full sm:w-auto justify-center"
-                    >
-                      Reply
-                    </Button>
-                  </div>
-                )}
-
-                {/* If answered: Display employee's response */}
-                {sr.status === 'answered' && sr.responses && sr.responses.length > 0 && (
-                  <div className="pt-2 border-t border-[#E4E8EF] space-y-1">
-                    {sr.responses.map((resp) => (
-                      <div key={resp.id} className="p-2.5 bg-[#F9FBFF] rounded-lg border border-[#E4E8EF]">
-                        <p className="text-[11px] font-semibold text-[#3157A4]">
-                          Your Submitted Response:
-                        </p>
-                        <p className="text-xs text-[#172033] whitespace-pre-wrap">{resp.responseText}</p>
-                        <span className="text-[10px] text-[#667085] mt-0.5 block">
-                          Submitted {formatDateTime(resp.createdAt)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div>
+                  <h3 className="text-xs font-bold text-[#172033] uppercase tracking-wider">
+                    Manager Status Inquiries ({myStatusRequests.length})
+                  </h3>
+                  <p className="text-[11px] text-[#667085]">
+                    Official inquiries requiring your progress update. Response updates are recorded immediately.
+                  </p>
+                </div>
               </div>
-            ))}
+            </div>
+
+            <div className="space-y-4">
+              {myStatusRequests.map((sr) => {
+                const isAnswered = sr.status === 'answered';
+                const hasPendingInput = !isAnswered || !!showFollowupFor[sr.id];
+                const currentText = statusResponseTexts[sr.id] || '';
+
+                return (
+                  <div
+                    key={sr.id}
+                    className="p-4 bg-white rounded-xl border border-[#E4E8EF] shadow-xs space-y-3"
+                  >
+                    {/* Inquiry Question Header & Status Badge */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#EBF3FF] text-[#3157A4] border border-[#B8D0F5]">
+                            Manager Inquiry
+                          </span>
+                          <span className="text-[11px] text-[#667085]">
+                            Dispatched {formatRelative(sr.createdAt)} ({formatDateTime(sr.createdAt)})
+                          </span>
+                        </div>
+
+                        {/* Prominently visible pre-set inquiry question */}
+                        <div className="mt-2 p-3 bg-[#F8FAFC] border-l-4 border-l-[#3157A4] border border-[#E2E8F0] rounded-r-lg">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#667085] block mb-1">
+                            Inquiry Question:
+                          </span>
+                          <p className="text-sm font-bold text-[#172033] leading-relaxed">
+                            "{sr.question}"
+                          </p>
+                        </div>
+                      </div>
+
+                      <span
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
+                          isAnswered
+                            ? 'bg-[#EDFAF4] text-[#16865B] border border-[#A8DFC5]'
+                            : 'bg-[#FFF8E7] text-[#C58A20] border border-[#F5D87E]'
+                        }`}
+                      >
+                        {isAnswered ? '✓ Answered' : '⏳ Awaiting Your Response'}
+                      </span>
+                    </div>
+
+                    {/* Google Meet Section (Only visible when explicitly scheduled & published by Admin) */}
+                    <GoogleMeetCard statusRequest={sr} isAdmin={false} />
+
+                    {/* Previously submitted responses */}
+                    {sr.responses && sr.responses.length > 0 && (
+                      <div className="pt-2 border-t border-[#E4E8EF] space-y-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#3157A4] block">
+                          Recorded Responses ({sr.responses.length}):
+                        </span>
+                        {sr.responses.map((resp) => (
+                          <div
+                            key={resp.id}
+                            className="p-3 bg-[#F9FBFF] rounded-lg border border-[#D0E2FF] space-y-1 text-xs"
+                          >
+                            <p className="text-xs text-[#172033] whitespace-pre-wrap leading-relaxed">
+                              {resp.responseText}
+                            </p>
+                            <span className="text-[10px] text-[#667085] block">
+                              Submitted {formatDateTime(resp.createdAt)} ({formatRelative(resp.createdAt)})
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Employee Status Response Input Block */}
+                    {hasPendingInput ? (
+                      <div className="pt-3 border-t border-[#E4E8EF] space-y-2 bg-[#FAFCFF] p-3 rounded-lg border border-[#DCE8F8]">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-[#172033] flex items-center gap-1.5">
+                            <Send size={13} className="text-[#3157A4]" />
+                            <span>Your Status Response for this Inquiry *</span>
+                          </label>
+                          {isAnswered && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setShowFollowupFor((prev) => ({ ...prev, [sr.id]: false }))
+                              }
+                              className="text-[11px] text-[#667085] hover:text-[#172033] underline"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+
+                        <textarea
+                          placeholder="Type your detailed status update for this inquiry (current progress, completion status, or blockers)..."
+                          value={currentText}
+                          onChange={(e) =>
+                            setStatusResponseTexts((prev) => ({
+                              ...prev,
+                              [sr.id]: e.target.value,
+                            }))
+                          }
+                          rows={3}
+                          className="w-full px-3 py-2 text-xs bg-white border border-[#CBD5E1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3157A4] leading-relaxed resize-y"
+                        />
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[10px] text-[#667085]">
+                            {currentText.length > 0 ? `${currentText.length} characters` : 'Required'}
+                          </span>
+                          <Button
+                            size="sm"
+                            disabled={!currentText.trim()}
+                            onClick={() =>
+                              sendStatusResponseMutation.mutate({
+                                reqId: sr.id,
+                                text: currentText.trim(),
+                              })
+                            }
+                            loading={sendStatusResponseMutation.isPending}
+                            className="text-xs px-4"
+                          >
+                            <Send size={12} />
+                            Submit Status Response
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="pt-2 flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setShowFollowupFor((prev) => ({ ...prev, [sr.id]: true }))
+                          }
+                          className="text-xs text-[#3157A4] border-[#B8D0F5] hover:bg-[#EBF3FF]"
+                        >
+                          + Send Additional Status Update
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

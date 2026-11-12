@@ -244,20 +244,39 @@ export function EmployeeDashboard() {
               {pendingStatusRequests.map((sr) => (
                 <div
                   key={sr.id}
-                  className="p-3 bg-white rounded-lg border border-[#F5D87E] flex flex-col justify-between gap-3 text-xs"
+                  className="p-3.5 bg-white rounded-lg border border-[#F5D87E] flex flex-col justify-between gap-3 text-xs shadow-xs"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <span className="font-bold text-[#172033] block">"{sr.question}"</span>
-                      <span className="text-[11px] text-[#667085]">
-                        Task: {sr.task?.title} ({sr.task?.referenceNumber}) • Received {formatRelative(sr.createdAt)}
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#EBF3FF] text-[#3157A4] border border-[#B8D0F5]">
+                          Manager Inquiry
+                        </span>
+                        <span className="text-[11px] text-[#667085]">
+                          Task: <span className="font-semibold text-[#172033]">{sr.task?.title}</span> ({sr.task?.referenceNumber})
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 bg-[#F8FAFC] border-l-4 border-l-[#3157A4] border border-[#E2E8F0] rounded-r-lg">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#667085] block mb-0.5">
+                          Inquiry Question:
+                        </span>
+                        <p className="text-xs font-bold text-[#172033] leading-relaxed">
+                          "{sr.question}"
+                        </p>
+                      </div>
+
+                      <span className="text-[10px] text-[#667085] block">
+                        Received {formatRelative(sr.createdAt)}
                       </span>
                     </div>
+
                     <Button
                       size="sm"
                       onClick={() => handleOpenRespond(sr)}
+                      className="shrink-0 self-start sm:self-auto text-xs"
                     >
-                      Reply to Manager
+                      Write Response
                     </Button>
                   </div>
                   <GoogleMeetCard statusRequest={sr} isAdmin={false} />

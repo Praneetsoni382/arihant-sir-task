@@ -241,47 +241,40 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
         )}
       </div>
 
-      {/* STATE 1: No Meeting Created Yet (Admin View) */}
+      {/* STATE 1: No Meeting Linked (Admin View) */}
       {!meeting && isAdmin && (
-        <div className="p-3 bg-[#F9FBFF] rounded-lg border border-[#E4E8EF] space-y-2.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="text-xs text-[#667085]">
-              <p className="font-semibold text-[#172033]">No meeting space created yet.</p>
-              <p className="text-[11px] text-[#667085] mt-0.5">
-                Generate a real Google Meet room via the official Google Meet API, schedule an IST time, and publish it to the employee.
-              </p>
-            </div>
+        <div className="p-2.5 bg-[#F9FBFF] rounded-lg border border-[#E4E8EF] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2 text-[#667085]">
+            <span className="text-[11px]">No Google Meet discussion scheduled for this inquiry.</span>
+          </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              {onOpenGoogleConnect && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={onOpenGoogleConnect}
-                  className="text-xs text-[#3157A4] border-[#B8D0F5]"
-                >
-                  Google Settings
-                </Button>
-              )}
+          <div className="flex items-center gap-2 shrink-0">
+            {onOpenGoogleConnect && (
               <Button
                 size="sm"
-                onClick={handleCreateRealMeetLink}
-                loading={isCreatingMeet}
-                className="bg-[#3157A4] hover:bg-[#264482] text-xs shrink-0"
+                variant="outline"
+                onClick={onOpenGoogleConnect}
+                className="text-[11px] text-[#667085] border-[#E4E8EF] h-7 px-2"
               >
-                <Plus size={13} />
-                Create Meet Link
+                Google Settings
               </Button>
-            </div>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCreateRealMeetLink}
+              loading={isCreatingMeet}
+              className="text-xs text-[#3157A4] border-[#B8D0F5] hover:bg-[#EBF3FF] h-7 px-2.5 font-medium"
+            >
+              <Plus size={12} />
+              <span>Add Google Meet</span>
+            </Button>
           </div>
 
           {creationError && (
-            <div className="p-2.5 bg-[#FFF0F0] text-[#D64545] rounded-lg border border-[#F5B8B8] text-xs flex items-start gap-2">
-              <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <span className="font-bold block">Google Meet API Notice</span>
-                <span className="text-[11px] leading-relaxed block">{creationError}</span>
-              </div>
+            <div className="w-full p-2 bg-[#FFF0F0] text-[#D64545] rounded-md border border-[#F5B8B8] text-[11px] flex items-start gap-1.5 mt-1">
+              <AlertCircle size={13} className="shrink-0 mt-0.5" />
+              <span>{creationError}</span>
             </div>
           )}
         </div>

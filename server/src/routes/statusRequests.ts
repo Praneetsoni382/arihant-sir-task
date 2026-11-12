@@ -54,9 +54,6 @@ router.get(
       let meeting = sr.meetingId
         ? meetingRepo.findById(sr.meetingId)
         : meetingRepo.findByStatusRequest(sr.id);
-      if (!meeting && task && task.meetingId) {
-        meeting = meetingRepo.findById(task.meetingId);
-      }
       if (meeting && meeting.status === 'draft' && !isAdmin) {
         meeting = undefined;
       }
@@ -256,8 +253,6 @@ taskStatusRequestRouter.post(
         publishedAt: publishedAtIso,
         timezone: 'Asia/Kolkata',
       });
-
-      await taskRepo.update(task.id, { meetingId: sharedMeeting.id });
     }
 
     for (const userId of recipientUserIds) {

@@ -700,9 +700,11 @@ export function TaskDetailPage() {
                 {taskStatusRequests.map((sr) => (
                   <Card key={sr.id} className="p-4">
                     <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-[#172033]">{sr.question}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#EBF3FF] text-[#3157A4] border border-[#B8D0F5]">
+                            Status Inquiry
+                          </span>
                           <span
                             className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
                               sr.status === 'answered'
@@ -710,9 +712,19 @@ export function TaskDetailPage() {
                                 : 'bg-[#FFF8E7] text-[#C58A20] border border-[#F5D87E]'
                             }`}
                           >
-                            {sr.status}
+                            {sr.status === 'answered' ? '✓ Answered' : '⏳ Pending Response'}
                           </span>
                         </div>
+
+                        <div className="p-3 bg-[#F8FAFC] border-l-4 border-l-[#3157A4] border border-[#E2E8F0] rounded-r-lg my-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#667085] block mb-0.5">
+                            Inquiry Question:
+                          </span>
+                          <p className="text-xs font-bold text-[#172033] leading-relaxed">
+                            "{sr.question}"
+                          </p>
+                        </div>
+
                         <p className="text-[11px] text-[#667085] mt-1">
                           Sent to: <span className="font-semibold text-[#172033]">{sr.recipientName}</span> •{' '}
                           {formatRelative(sr.createdAt)}

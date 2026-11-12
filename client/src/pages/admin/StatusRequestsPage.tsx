@@ -198,7 +198,14 @@ export function StatusRequestsPage() {
                       </Badge>
                     </div>
 
-                    <h3 className="text-sm font-bold text-[#172033] break-words">"{req.question}"</h3>
+                    <div className="p-3 bg-[#F8FAFC] border-l-4 border-l-[#3157A4] border border-[#E2E8F0] rounded-r-lg my-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#667085] block mb-0.5">
+                        Inquiry Question (Admin Prescribed):
+                      </span>
+                      <h3 className="text-sm font-bold text-[#172033] break-words leading-relaxed">
+                        "{req.question}"
+                      </h3>
+                    </div>
 
                     <p className="text-xs text-[#667085]">
                       Dispatched to: <span className="font-semibold text-[#172033]">{req.recipientName}</span> •{' '}

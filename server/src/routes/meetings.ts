@@ -220,13 +220,10 @@ router.post(
       return;
     }
 
-    // Check if meeting already exists via statusRequest.meetingId, task.meetingId, or repository
+    // Check if meeting already exists for this specific statusRequest
     let existingMeeting: any = null;
     if (sr.meetingId) {
       existingMeeting = meetingRepo.findById(sr.meetingId);
-    }
-    if (!existingMeeting && task.meetingId) {
-      existingMeeting = meetingRepo.findById(task.meetingId);
     }
     if (!existingMeeting) {
       existingMeeting = meetingRepo.findByStatusRequest(requestId);
@@ -236,9 +233,7 @@ router.post(
     }
 
     if (existingMeeting) {
-      // Ensure meetingId is synced on sr and task
       if (!sr.meetingId) await statusRequestRepo.update(sr.id, { meetingId: existingMeeting.id });
-      if (!task.meetingId) await taskRepo.update(task.id, { meetingId: existingMeeting.id });
       res.status(200).json({ success: true, data: existingMeeting });
       return;
     }
@@ -266,17 +261,8 @@ router.post(
       timezone: 'Asia/Kolkata',
     });
 
-    // Store meetingId on status request and task document for consistent resolution across all participants
+    // Store meetingId strictly on this specific status request
     await statusRequestRepo.update(sr.id, { meetingId: newMeeting.id });
-    await taskRepo.update(task.id, { meetingId: newMeeting.id });
-
-    // Synchronize this meeting across all sibling status requests for the same task
-    const siblingRequests = statusRequestRepo.findByTask(task.id);
-    for (const sib of siblingRequests) {
-      if (!sib.meetingId) {
-        await statusRequestRepo.update(sib.id, { meetingId: newMeeting.id });
-      }
-    }
 
     await createAuditEvent({
       actorUserId: req.session.userId!,
@@ -386,10 +372,7 @@ router.post(
 
     const siblingRequests = statusRequestRepo.findByTask(sr.taskId);
     for (const sib of siblingRequests) {
-      if (sib.meetingId === meeting.id || !sib.meetingId) {
-        if (!sib.meetingId) {
-          await statusRequestRepo.update(sib.id, { meetingId: meeting.id });
-        }
+      if (sib.meetingId === meeting.id) {
         recipientUids.add(sib.recipientUserId);
       }
     }
@@ -586,12 +569,10 @@ router.get(
     const task = taskRepo.findById(sr.taskId);
 
     // Retrieve meeting using stored meetingId from task or statusRequest document, ensuring consistent resolution across participants
+    // Retrieve meeting strictly associated with this statusRequest
     let meeting: any = null;
     if (sr.meetingId) {
       meeting = meetingRepo.findById(sr.meetingId);
-    }
-    if (!meeting && task && task.meetingId) {
-      meeting = meetingRepo.findById(task.meetingId);
     }
     if (!meeting) {
       meeting = meetingRepo.findByStatusRequest(requestId);
