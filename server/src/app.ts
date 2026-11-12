@@ -129,11 +129,16 @@ app.use('/api', meetingRoutes);
 import path from 'path';
 import fs from 'fs';
 
+// Redirect any Firebase Auth handler requests to official Firebase Auth domain
+app.all('/__/auth/*', (req, res) => {
+  res.redirect(`https://gen-lang-client-0565045974.firebaseapp.com${req.originalUrl}`);
+});
+
 const clientDistPath = path.resolve(process.cwd(), 'client/dist');
 if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) {
+    if (req.path.startsWith('/api') || req.path.startsWith('/__/auth')) {
       return next();
     }
     res.sendFile(path.resolve(clientDistPath, 'index.html'));

@@ -97,11 +97,11 @@ export function GoogleMeetCard({ statusRequest, isAdmin, onOpenGoogleConnect }: 
         }
       } else if (msg.includes('popup-closed-by-user') || err?.code === 'auth/popup-closed-by-user') {
         setCreationError(
-          'Sign-in window closed: Please click "Google Settings" and use "Authorize via Google (Redirect Mode)" to connect seamlessly without popups.'
+          'Sign-in window closed: Please click "Google Settings" to connect your Google account.'
         );
       } else if (msg.includes('popup-blocked') || err?.code === 'auth/popup-blocked') {
         setCreationError(
-          'Popup Blocked: Please click "Google Settings" and select "Authorize via Google (Redirect Mode)" to authorize directly in the main browser window.'
+          'Popup Blocked: Please allow popups for this site and click "Google Settings" to connect your Google account.'
         );
       } else {
         setCreationError(msg || 'Failed to create real Google Meet space.');

@@ -114,8 +114,8 @@ export async function triggerGoogleMeetRedirect(): Promise<void> {
 }
 
 /**
- * Google Meet access token authorization.
- * Supports cached tokens, backend verification, and single-trigger popup / redirect.
+ * Google Meet access token authorization via Google Identity Services (GIS).
+ * Launches exactly ONE account chooser popup on accounts.google.com.
  */
 export async function getGoogleMeetAccessToken(interactive = true): Promise<{
   accessToken: string;
@@ -145,7 +145,7 @@ export async function getGoogleMeetAccessToken(interactive = true): Promise<{
 
   // 3. Prevent duplicate simultaneous authorization requests
   if (isAuthorizing) {
-    throw new Error('Google authorization is already in progress. Please complete the sign-in prompt.');
+    throw new Error('Google authorization is already in progress. Please complete the account selection.');
   }
 
   try {
@@ -153,9 +153,7 @@ export async function getGoogleMeetAccessToken(interactive = true): Promise<{
     const isGisLoaded = await loadGisScript();
 
     if (!isGisLoaded || !window.google?.accounts?.oauth2) {
-      // Fall back to full-page redirect if GIS script fails or is blocked
-      await triggerGoogleMeetRedirect();
-      return null;
+      throw new Error('Google Identity Services library could not be loaded. Please check your internet connection.');
     }
 
     return await new Promise<{ accessToken: string; email: string }>((resolve, reject) => {
@@ -213,15 +211,11 @@ export async function getGoogleMeetAccessToken(interactive = true): Promise<{
         error_callback: (_err: any) => {
           if (resolved) return;
           resolved = true;
-          reject(
-            new Error(
-              'Sign-in Popup Notice: Popups were blocked or closed. Please use "Authorize via Google (Redirect Mode)" to sign in seamlessly without popups.'
-            )
-          );
+          reject(new Error('Sign-in popup was closed before completing account selection.'));
         },
       });
 
-      // Launch single OAuth popup
+      // Launch EXACTLY ONE OAuth account selection popup directly on accounts.google.com
       client.requestAccessToken({ prompt: 'select_account' });
     });
   } finally {
